@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+// Rutas de pantallas
+import 'screens/pantalla_login.dart';
+import 'screens/pantalla_superadmin.dart';
 import 'screens/seccion_inicio.dart';
 import 'screens/seccion_posiciones.dart';
 import 'screens/seccion_resultados.dart';
 import 'screens/seccion_fixture.dart';
-import 'package:liga_el_rosario/screens/seccion_sanciones.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'screens/seccion_sanciones.dart';
 
 Future<void> main() async {
-  // Asegura que los bindings de Flutter estén listos para arrancar servicios externos
+  // Asegura que los bindings de Flutter estén listos
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicialización de Supabase con los datos de tu proyecto LigaMaster SaaS
-
+  // Inicialización de Supabase
   await Supabase.initialize(
     url: 'https://eexcwuztcbqgstmhxnqe.supabase.co',
-    // ignore: deprecated_member_use
-    anonKey: 'sb_publishable_jDpRd1sZ8JsSYWXOeq6YQg__OEprfXN',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVleGN3dXp0Y2JxZ3N0bWh4bnFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDQ4NTIsImV4cCI6MjA5OTgyMDg1Mn0.sb8TQAAMnE6Sa3xSXabNFLCQxFrq6WGAVoelxv5NDpE',
   );
 
   runApp(const MyApp());
@@ -30,16 +33,24 @@ class MyApp extends StatelessWidget {
       title: 'LigaMaster SaaS',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primaryColor: const Color(0xFF1A3160),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF1A3160),
+          primary: const Color(0xFF1A3160),
+        ),
         useMaterial3: true,
       ),
-      home: const PantallaPrincipal(), // Abre directamente tu menú y pantallas
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const PantallaLogin(),
+        '/superadmin': (context) => const PantallaSuperadmin(),
+        '/club-home': (context) => const PantallaPrincipal(),
+      },
     );
   }
 }
 
 // ==========================================
-// 📋 AQUÍ INGRESAS TUS EQUIPOS INSCRITOS
+// 📋 MODELO Y DATOS DE PRUEBA (EQUIPOS)
 // ==========================================
 class Equipo {
   final String nombre;
@@ -59,7 +70,6 @@ class Equipo {
   });
 }
 
-// Puedes cambiar los nombres o los números aquí mismo cuando quieras:
 const List<Equipo> listaDeEquipos = [
   Equipo(
     nombre: 'Club Social El Rosario',
@@ -102,21 +112,10 @@ const List<Equipo> listaDeEquipos = [
     puntos: 0,
   ),
 ];
+
 // ==========================================
-
-class MiAppTorneo extends StatelessWidget {
-  const MiAppTorneo({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Liga El Rosario',
-      home: PantallaPrincipal(),
-    );
-  }
-}
-
+// PANTALLA PRINCIPAL (PARA ROLES NORMALES / CLUBES)
+// ==========================================
 class PantallaPrincipal extends StatefulWidget {
   const PantallaPrincipal({super.key});
 
@@ -126,14 +125,45 @@ class PantallaPrincipal extends StatefulWidget {
 
 class _PantallaPrincipalState extends State<PantallaPrincipal> {
   int _seccionActual = 0;
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   final List<Widget> _pantallas = [
-    const SeccionInicio(), // 0. Inicio
-    const SeccionResultados(), // 1. Resultados
-    const SeccionPosiciones(), // 2. Posiciones (¡Tu nueva pantalla aquí!)
-    const SeccionSanciones(), // 3. Sanciones
-    const SeccionFixture(), // 4. Fixture
+    const SeccionInicio(),
+    const SeccionResultados(),
+    const SeccionPosiciones(),
+    const SeccionSanciones(),
+    const SeccionFixture(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _verificarSesion();
+  }
+
+  // Comprueba que exista sesión activa al entrar por URL directa
+  void _verificarSesion() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final session = _supabase.auth.currentSession;
+      if (session == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Inicia sesión para ingresar al portal del club'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        Navigator.pushReplacementNamed(context, '/');
+      }
+    });
+  }
+
+  Future<void> _cerrarSesion() async {
+    await _supabase.auth.signOut();
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, '/');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -141,8 +171,9 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
         backgroundColor: const Color(0xFF1A3160),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.settings, color: Colors.white),
-          onPressed: () {},
+          icon: const Icon(Icons.logout, color: Colors.white),
+          tooltip: 'Cerrar Sesión',
+          onPressed: _cerrarSesion,
         ),
         title: const Text(
           'LIGA INDEPENDIENTE EL ROSARIO',
