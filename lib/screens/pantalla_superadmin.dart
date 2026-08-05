@@ -1,5 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+// Formateador personalizado para convertir todo el texto a Mayúsculas en tiempo real
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return TextEditingValue(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
+    );
+  }
+}
 
 class PantallaSuperadmin extends StatefulWidget {
   const PantallaSuperadmin({super.key});
@@ -19,7 +34,7 @@ class _PantallaSuperadminState extends State<PantallaSuperadmin> {
     _cargarLigas();
   }
 
-  // 1. Obtener Ligas desde Supabase
+  // Cargar Ligas desde Supabase
   Future<void> _cargarLigas() async {
     setState(() => _cargando = true);
     try {
@@ -41,26 +56,117 @@ class _PantallaSuperadminState extends State<PantallaSuperadmin> {
     }
   }
 
-  // 2. Diálogo para CREAR o EDITAR Liga
+  // Diálogo para CREAR o EDITAR Liga con validaciones estrictas
   void _mostrarDialogoLiga({Map<String, dynamic>? ligaExistente}) {
     final bool esEdicion = ligaExistente != null;
-    final TextEditingController nombreController = TextEditingController(
+
+    final TextEditingController nombreLigaController = TextEditingController(
       text: esEdicion ? ligaExistente['nombre'] : '',
     );
+    final TextEditingController presidenteNombreController =
+        TextEditingController(
+          text: esEdicion ? ligaExistente['presidente_nombre'] ?? '' : '',
+        );
+    final TextEditingController presidenteCedulaController =
+        TextEditingController(
+          text: esEdicion ? ligaExistente['presidente_cedula'] ?? '' : '',
+        );
+    final TextEditingController presidenteTelefonoController =
+        TextEditingController(
+          text: esEdicion ? ligaExistente['presidente_telefono'] ?? '' : '',
+        );
+    final TextEditingController presidenteEmailController =
+        TextEditingController(
+          text: esEdicion ? ligaExistente['presidente_email'] ?? '' : '',
+        );
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(esEdicion ? 'Editar Liga' : 'Crear Nueva Liga'),
-          content: TextField(
-            controller: nombreController,
-            decoration: const InputDecoration(
-              labelText: 'Nombre de la Liga',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.sports_soccer),
+          title: Text(esEdicion ? 'Editar Liga' : 'Registrar Nueva Liga'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Datos de la Liga',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A3160),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: nombreLigaController,
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [
+                    UpperCaseTextFormatter(),
+                  ], // <-- Fuerza MAYÚSCULAS al escribir
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre de la Liga',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.sports_soccer),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Datos del Presidente',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A3160),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: presidenteNombreController,
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [
+                    UpperCaseTextFormatter(),
+                  ], // <-- Fuerza MAYÚSCULAS al escribir
+                  decoration: const InputDecoration(
+                    labelText: 'Nombres y Apellidos',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: presidenteCedulaController,
+                  keyboardType: TextInputType.number,
+                  maxLength: 10,
+                  decoration: const InputDecoration(
+                    labelText: 'Cédula de Identidad',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.badge),
+                    counterText: "",
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: presidenteTelefonoController,
+                  keyboardType: TextInputType.phone,
+                  maxLength: 10,
+                  decoration: const InputDecoration(
+                    labelText: 'Número de Teléfono',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.phone),
+                    counterText: "",
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: presidenteEmailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Correo Electrónico',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.email),
+                  ),
+                ),
+              ],
             ),
-            autofocus: true,
           ),
           actions: [
             TextButton(
@@ -73,30 +179,105 @@ class _PantallaSuperadminState extends State<PantallaSuperadmin> {
                 foregroundColor: Colors.white,
               ),
               onPressed: () async {
-                final nombre = nombreController.text.trim();
-                if (nombre.isEmpty) return;
+                final nombreLiga = nombreLigaController.text
+                    .trim()
+                    .toUpperCase();
+                final presNombre = presidenteNombreController.text
+                    .trim()
+                    .toUpperCase();
+                final presCedula = presidenteCedulaController.text.trim();
+                final presTelefono = presidenteTelefonoController.text.trim();
+                final presEmail = presidenteEmailController.text.trim();
 
-                Navigator.pop(context); // Cerrar diálogo
+                // 1. Validar Nombre de la Liga
+                if (nombreLiga.isEmpty) {
+                  _mostrarMensaje(
+                    'El nombre de la liga es obligatorio',
+                    Colors.orange,
+                  );
+                  return;
+                }
+
+                // 2. Validar Nombres y Apellidos Completos (Mínimo 4 palabras)
+                final palabrasNombre = presNombre
+                    .split(RegExp(r'\s+'))
+                    .where((p) => p.isNotEmpty)
+                    .toList();
+                if (palabrasNombre.length < 4) {
+                  _mostrarMensaje(
+                    'Debe ingresar los dos nombres y dos apellidos completos del Presidente',
+                    Colors.orange,
+                  );
+                  return;
+                }
+
+                // 3. Validar Cédula (Exactamente 10 dígitos numéricos)
+                final esCedulaValida = RegExp(r'^\d{10}$').hasMatch(presCedula);
+                if (!esCedulaValida) {
+                  _mostrarMensaje(
+                    'La cédula de identidad debe tener exactamente 10 dígitos',
+                    Colors.orange,
+                  );
+                  return;
+                }
+
+                // 4. Validar Teléfono (Exactamente 10 dígitos numéricos)
+                final esTelefonoValido = RegExp(
+                  r'^\d{10}$',
+                ).hasMatch(presTelefono);
+                if (!esTelefonoValido) {
+                  _mostrarMensaje(
+                    'El número de teléfono debe tener exactamente 10 dígitos',
+                    Colors.orange,
+                  );
+                  return;
+                }
+
+                // 5. Validar Correo Electrónico
+                final esEmailValido = RegExp(
+                  r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                ).hasMatch(presEmail);
+                if (!esEmailValido) {
+                  _mostrarMensaje(
+                    'Ingrese un correo electrónico válido (ejemplo@dominio.com)',
+                    Colors.orange,
+                  );
+                  return;
+                }
+
+                Navigator.pop(context);
 
                 try {
+                  final datos = {
+                    'nombre': nombreLiga,
+                    'presidente_nombre': presNombre,
+                    'presidente_cedula': presCedula,
+                    'presidente_telefono': presTelefono,
+                    'presidente_email': presEmail,
+                  };
+
                   if (esEdicion) {
-                    // Actualizar liga existente
                     await _supabase
                         .from('ligas')
-                        .update({'nombre': nombre})
+                        .update(datos)
                         .eq('id', ligaExistente['id']);
-                    _mostrarMensaje('Liga actualizada con éxito', Colors.green);
+                    _mostrarMensaje(
+                      'Liga actualizada correctamente',
+                      Colors.green,
+                    );
                   } else {
-                    // Crear nueva liga
-                    await _supabase.from('ligas').insert({'nombre': nombre});
-                    _mostrarMensaje('Liga creada con éxito', Colors.green);
+                    await _supabase.from('ligas').insert(datos);
+                    _mostrarMensaje(
+                      'Liga registrada correctamente',
+                      Colors.green,
+                    );
                   }
-                  _cargarLigas(); // Recargar la lista
+                  _cargarLigas();
                 } catch (e) {
                   _mostrarMensaje('Error al guardar: $e', Colors.red);
                 }
               },
-              child: Text(esEdicion ? 'Guardar Cambios' : 'Crear'),
+              child: Text(esEdicion ? 'Guardar Cambios' : 'Registrar Liga'),
             ),
           ],
         );
@@ -104,16 +285,14 @@ class _PantallaSuperadminState extends State<PantallaSuperadmin> {
     );
   }
 
-  // 3. Confirmar y ELIMINAR Liga
+  // Confirmar y ELIMINAR Liga
   void _confirmarEliminarLiga(Map<String, dynamic> liga) {
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Confirmar Eliminación'),
-          content: Text(
-            '¿Estás seguro de que deseas eliminar la liga "${liga['nombre']}"? Esta acción no se puede deshacer.',
-          ),
+          content: Text('¿Deseas eliminar la liga "${liga['nombre']}"?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -125,10 +304,7 @@ class _PantallaSuperadminState extends State<PantallaSuperadmin> {
                 Navigator.pop(context);
                 try {
                   await _supabase.from('ligas').delete().eq('id', liga['id']);
-                  _mostrarMensaje(
-                    'Liga eliminada correctamente',
-                    Colors.orange,
-                  );
+                  _mostrarMensaje('Liga eliminada', Colors.orange);
                   _cargarLigas();
                 } catch (e) {
                   _mostrarMensaje('Error al eliminar: $e', Colors.red);
@@ -166,7 +342,7 @@ class _PantallaSuperadminState extends State<PantallaSuperadmin> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Panel Superadministrador'),
+        title: const Text('Panel de Superadministrador'),
         backgroundColor: const Color(0xFF1A3160),
         foregroundColor: Colors.white,
         actions: [
@@ -188,7 +364,7 @@ class _PantallaSuperadminState extends State<PantallaSuperadmin> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Gestión Global de Ligas',
+                        'Ligas Registradas',
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -214,14 +390,17 @@ class _PantallaSuperadminState extends State<PantallaSuperadmin> {
                   Expanded(
                     child: _ligas.isEmpty
                         ? const Center(
-                            child: Text(
-                              'No hay ligas registradas en el sistema.',
-                            ),
+                            child: Text('No hay ligas registradas aún.'),
                           )
                         : ListView.builder(
                             itemCount: _ligas.length,
                             itemBuilder: (context, index) {
                               final liga = _ligas[index];
+                              final presNombre =
+                                  liga['presidente_nombre'] ?? 'Sin asignar';
+                              final presTel =
+                                  liga['presidente_telefono'] ?? 'N/A';
+
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 12),
                                 elevation: 2,
@@ -229,7 +408,7 @@ class _PantallaSuperadminState extends State<PantallaSuperadmin> {
                                   leading: const CircleAvatar(
                                     backgroundColor: Color(0xFF1A3160),
                                     child: Icon(
-                                      Icons.sports_soccer,
+                                      Icons.emoji_events,
                                       color: Colors.white,
                                     ),
                                   ),
@@ -240,21 +419,23 @@ class _PantallaSuperadminState extends State<PantallaSuperadmin> {
                                       fontSize: 16,
                                     ),
                                   ),
+                                  subtitle: Text(
+                                    'Presidente: $presNombre | Tel: $presTel',
+                                  ),
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      // Botón Editar
                                       IconButton(
                                         icon: const Icon(
                                           Icons.edit,
                                           color: Colors.blue,
                                         ),
-                                        tooltip: 'Editar Liga',
+                                        tooltip:
+                                            'Editar Liga / Ver Información',
                                         onPressed: () => _mostrarDialogoLiga(
                                           ligaExistente: liga,
                                         ),
                                       ),
-                                      // Botón Eliminar
                                       IconButton(
                                         icon: const Icon(
                                           Icons.delete,
