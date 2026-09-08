@@ -9,7 +9,7 @@ class LigaService {
   ) async {
     final response = await _supabase
         .from('equipos')
-        .select('*, perfiles(nombre, email)')
+        .select('*')
         .eq('liga_id', ligaId);
     return List<Map<String, dynamic>>.from(response);
   }
@@ -20,12 +20,22 @@ class LigaService {
     required String categoria,
     required String ligaId,
     required String delegadoId,
+    String? escudoUrl,
+    String? delegadoNombre,
+    String? delegadoCedula,
+    String? delegadoTelefono,
+    String? barrio,
   }) async {
     await _supabase.from('equipos').insert({
       'nombre': nombre,
       'categoria': categoria,
       'liga_id': ligaId,
       'delegado_id': delegadoId,
+      'escudo_url': escudoUrl ?? '',
+      'delegado_nombre': delegadoNombre ?? '',
+      'delegado_cedula': delegadoCedula ?? '',
+      'delegado_telefono': delegadoTelefono ?? '',
+      'barrio': barrio ?? '',
     });
   }
 
