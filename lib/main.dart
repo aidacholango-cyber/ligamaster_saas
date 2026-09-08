@@ -31,7 +31,7 @@ class MiAppWebLigas extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => const PantallaLogin(),
-        '/superadmin': (context) => const PantallaSuperAdmin(),
+        '/superadmin': (context) => const PantallaSuperadmin(),
         '/admin_liga': (context) => const PantallaAdminLiga(),
         '/ligas': (context) => const PantallaLigas(),
       },

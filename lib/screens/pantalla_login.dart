@@ -96,7 +96,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
       // 4. Redirección según el rol verificado
       if (_rolSeleccionado == 'Superadministrador') {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const PantallaSuperAdmin()),
+          MaterialPageRoute(builder: (context) => const PantallaSuperadmin()),
         );
       } else if (_rolSeleccionado == 'Administrador de Liga') {
         Navigator.of(context).pushReplacement(
