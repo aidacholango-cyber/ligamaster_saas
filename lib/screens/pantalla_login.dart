@@ -1,6 +1,8 @@
-import 'package:liga_el_rosario/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'pantalla_superadmin.dart';
+import 'pantalla_admin_liga.dart';
+import 'pantalla_ligas.dart';
 
 class PantallaLogin extends StatefulWidget {
   const PantallaLogin({super.key});
@@ -10,66 +12,111 @@ class PantallaLogin extends StatefulWidget {
 }
 
 class _PantallaLoginState extends State<PantallaLogin> {
-  // Controladores para leer lo que el usuario escribe en los campos
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  String _rolSeleccionado = 'Superadministrador';
   bool _cargando = false;
 
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
+  final List<String> _roles = [
+    'Superadministrador',
+    'Administrador de Liga',
+    'Delegado / Usuario',
+  ];
+
+  // Mapeo entre el texto del Dropdown y el valor del rol en la BD de Supabase
+  String _obtenerRolBD(String rolUI) {
+    switch (rolUI) {
+      case 'Superadministrador':
+        return 'superadmin';
+      case 'Administrador de Liga':
+        return 'admin_liga';
+      case 'Delegado / Usuario':
+        return 'delegado';
+      default:
+        return '';
+    }
   }
 
-  // FUNCIÓN PRINCIPAL: Iniciar Sesión en Supabase
   Future<void> _iniciarSesion() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor, ingrese correo y contraseña')),
+      );
+      return;
+    }
+
     setState(() {
       _cargando = true;
     });
 
     try {
-      // 1. Intentamos autenticar con Supabase Auth
+      // 1. Autenticación contra Supabase Auth
       final response = await Supabase.instance.client.auth.signInWithPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+        email: email,
+        password: password,
       );
 
-      if (response.user != null) {
-        final userId = response.user!.id;
-
-        // 2. Consultamos la tabla 'perfiles' solo seleccionando 'rol'
-        final perfil = await Supabase.instance.client
-            .from('perfiles')
-            .select('rol')
-            .eq('id', userId)
-            .maybeSingle();
-
-        final String rol = perfil?['rol'] ?? 'club';
-
-        if (!mounted) return;
-
-        // 3. Redirección según el rol detectado
-        if (rol == 'superadmin') {
-          Navigator.pushReplacementNamed(context, '/superadmin');
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('¡Bienvenido! Rol detectado: $rol'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+      final user = response.user;
+      if (user == null) {
+        throw Exception('Usuario no encontrado');
       }
-    } catch (e) {
+
+      // 2. Consulta del rol en la tabla perfiles
+      final perfil = await Supabase.instance.client
+          .from('perfiles')
+          .select('rol')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (perfil == null) {
+        throw Exception('El usuario no tiene un perfil registrado.');
+      }
+
+      final String rolBD = perfil['rol'] ?? '';
+      final String rolEsperado = _obtenerRolBD(_rolSeleccionado);
+
+      if (!mounted) return;
+
+      // 3. Validación de que el rol seleccionado coincida con el correo asignado
+      if (rolBD != rolEsperado) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Acceso denegado: Este correo no tiene el rol de "$_rolSeleccionado".',
+            ),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+        return;
+      }
+
+      // 4. Redirección según el rol verificado
+      if (_rolSeleccionado == 'Superadministrador') {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const PantallaSuperAdmin()),
+        );
+      } else if (_rolSeleccionado == 'Administrador de Liga') {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const PantallaAdminLiga()),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const PantallaLigas()),
+        );
+      }
+    } on AuthException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al iniciar sesión: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Error de autenticación: ${e.message}')),
       );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) {
         setState(() {
@@ -82,42 +129,65 @@ class _PantallaLoginState extends State<PantallaLogin> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A3160),
+      backgroundColor: Colors.grey.shade100,
       body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+        child: SizedBox(
+          width: 450, // Diseño centrado adaptado para pantalla WEB
           child: Card(
-            elevation: 8,
+            elevation: 5,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
             child: Padding(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.all(32.0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(
                     Icons.sports_soccer,
                     size: 64,
-                    color: Color(0xFF1A3160),
+                    color: Colors.indigo,
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Liga El Rosario',
+                    'LigaMaster SaaS',
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: 26,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A3160),
+                      color: Colors.indigo,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const Text(
+                    'Gestión e Inscripción Web',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 32),
+                  DropdownButtonFormField<String>(
+                    value: _rolSeleccionado,
+                    decoration: const InputDecoration(
+                      labelText: 'Rol de usuario',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person_pin),
+                    ),
+                    items: _roles.map((String rol) {
+                      return DropdownMenuItem<String>(
+                        value: rol,
+                        child: Text(rol),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _rolSeleccionado = value!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
                   TextField(
                     controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(
-                      labelText: 'Correo Electrónico',
-                      prefixIcon: Icon(Icons.email),
+                      labelText: 'Correo electrónico',
                       border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.email),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -126,8 +196,8 @@ class _PantallaLoginState extends State<PantallaLogin> {
                     obscureText: true,
                     decoration: const InputDecoration(
                       labelText: 'Contraseña',
-                      prefixIcon: Icon(Icons.lock),
                       border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.lock),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -135,23 +205,16 @@ class _PantallaLoginState extends State<PantallaLogin> {
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
+                      onPressed: _cargando ? null : _iniciarSesion,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1A3160),
+                        backgroundColor: Colors.indigo,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      onPressed: _cargando ? null : _iniciarSesion,
                       child: _cargando
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
+                          ? const CircularProgressIndicator(color: Colors.white)
                           : const Text(
                               'Iniciar Sesión',
                               style: TextStyle(fontSize: 16),

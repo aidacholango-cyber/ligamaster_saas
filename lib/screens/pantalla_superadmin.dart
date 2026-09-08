@@ -1,29 +1,16 @@
+// lib/screens/pantalla_superadmin.dart
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Formateador personalizado para convertir todo el texto a Mayúsculas en tiempo real
-class UpperCaseTextFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    return TextEditingValue(
-      text: newValue.text.toUpperCase(),
-      selection: newValue.selection,
-    );
-  }
-}
-
-class PantallaSuperadmin extends StatefulWidget {
-  const PantallaSuperadmin({super.key});
+class PantallaSuperAdmin extends StatefulWidget {
+  const PantallaSuperAdmin({super.key});
 
   @override
-  State<PantallaSuperadmin> createState() => _PantallaSuperadminState();
+  State<PantallaSuperAdmin> createState() => _PantallaSuperAdminState();
 }
 
-class _PantallaSuperadminState extends State<PantallaSuperadmin> {
+class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
   final SupabaseClient _supabase = Supabase.instance.client;
   bool _cargando = true;
   List<Map<String, dynamic>> _ligas = [];
@@ -34,14 +21,19 @@ class _PantallaSuperadminState extends State<PantallaSuperadmin> {
     _cargarLigas();
   }
 
-  // Cargar Ligas desde Supabase
   Future<void> _cargarLigas() async {
     setState(() => _cargando = true);
     try {
-      final response = await _supabase
-          .from('ligas')
-          .select()
-          .order('created_at', ascending: false);
+      final response = await _supabase.from('ligas').select('''
+            id,
+            nombre,
+            categoria,
+            admin_id,
+            perfiles:admin_id (
+              nombre,
+              email
+            )
+          ''');
 
       if (!mounted) return;
 
@@ -51,290 +43,130 @@ class _PantallaSuperadminState extends State<PantallaSuperadmin> {
       });
     } catch (e) {
       if (!mounted) return;
-      _mostrarMensaje('Error al cargar ligas: $e', Colors.red);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al cargar ligas: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
       setState(() => _cargando = false);
     }
   }
 
-  // Diálogo para CREAR o EDITAR Liga con validaciones estrictas
-  void _mostrarDialogoLiga({Map<String, dynamic>? ligaExistente}) {
-    final bool esEdicion = ligaExistente != null;
+  Future<void> _abrirDialogoAsignarAdmin(Map<String, dynamic> liga) async {
+    String? adminSeleccionadoId = liga['admin_id']?.toString();
 
-    final TextEditingController nombreLigaController = TextEditingController(
-      text: esEdicion ? ligaExistente['nombre'] : '',
-    );
-    final TextEditingController presidenteNombreController =
-        TextEditingController(
-          text: esEdicion ? ligaExistente['presidente_nombre'] ?? '' : '',
-        );
-    final TextEditingController presidenteCedulaController =
-        TextEditingController(
-          text: esEdicion ? ligaExistente['presidente_cedula'] ?? '' : '',
-        );
-    final TextEditingController presidenteTelefonoController =
-        TextEditingController(
-          text: esEdicion ? ligaExistente['presidente_telefono'] ?? '' : '',
-        );
-    final TextEditingController presidenteEmailController =
-        TextEditingController(
-          text: esEdicion ? ligaExistente['presidente_email'] ?? '' : '',
-        );
+    // Obtener usuarios con rol 'admin_liga' desde la tabla perfiles
+    List<Map<String, dynamic>> administradores = [];
+    try {
+      final res = await _supabase
+          .from('perfiles')
+          .select('id, nombre, email')
+          .eq('rol', 'admin_liga');
+      administradores = List<Map<String, dynamic>>.from(res);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al obtener administradores: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
 
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(esEdicion ? 'Editar Liga' : 'Registrar Nueva Liga'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Datos de la Liga',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A3160),
-                  ),
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(
+                'Asignar Admin a ${liga['nombre']}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1A3160),
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: nombreLigaController,
-                  textCapitalization: TextCapitalization.characters,
-                  inputFormatters: [
-                    UpperCaseTextFormatter(),
-                  ], // <-- Fuerza MAYÚSCULAS al escribir
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre de la Liga',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.sports_soccer),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Seleccione el usuario que administrará esta liga:',
+                    style: TextStyle(fontSize: 13, color: Colors.grey),
                   ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: adminSeleccionadoId,
+                    isExpanded: true,
+                    hint: const Text('Seleccionar Administrador'),
+                    items: administradores.map((admin) {
+                      return DropdownMenuItem<String>(
+                        value: admin['id'].toString(),
+                        child: Text(
+                          '${admin['nombre']} (${admin['email']})',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      setDialogState(() {
+                        adminSeleccionadoId = val;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancelar'),
                 ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Datos del Presidente',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A3160),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1A3160),
+                    foregroundColor: Colors.white,
                   ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: presidenteNombreController,
-                  textCapitalization: TextCapitalization.characters,
-                  inputFormatters: [
-                    UpperCaseTextFormatter(),
-                  ], // <-- Fuerza MAYÚSCULAS al escribir
-                  decoration: const InputDecoration(
-                    labelText: 'Nombres y Apellidos',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: presidenteCedulaController,
-                  keyboardType: TextInputType.number,
-                  maxLength: 10,
-                  decoration: const InputDecoration(
-                    labelText: 'Cédula de Identidad',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.badge),
-                    counterText: "",
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: presidenteTelefonoController,
-                  keyboardType: TextInputType.phone,
-                  maxLength: 10,
-                  decoration: const InputDecoration(
-                    labelText: 'Número de Teléfono',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.phone),
-                    counterText: "",
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: presidenteEmailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Correo Electrónico',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email),
-                  ),
+                  onPressed: () async {
+                    if (adminSeleccionadoId == null) return;
+
+                    try {
+                      await _supabase
+                          .from('ligas')
+                          .update({'admin_id': adminSeleccionadoId})
+                          .eq('id', liga['id']);
+
+                      if (!mounted) return;
+                      if (dialogContext.mounted) Navigator.pop(dialogContext);
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Administrador asignado correctamente'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      _cargarLigas();
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error al asignar admin: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                  child: const Text('Guardar'),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1A3160),
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () async {
-                final nombreLiga = nombreLigaController.text
-                    .trim()
-                    .toUpperCase();
-                final presNombre = presidenteNombreController.text
-                    .trim()
-                    .toUpperCase();
-                final presCedula = presidenteCedulaController.text.trim();
-                final presTelefono = presidenteTelefonoController.text.trim();
-                final presEmail = presidenteEmailController.text.trim();
-
-                // 1. Validar Nombre de la Liga
-                if (nombreLiga.isEmpty) {
-                  _mostrarMensaje(
-                    'El nombre de la liga es obligatorio',
-                    Colors.orange,
-                  );
-                  return;
-                }
-
-                // 2. Validar Nombres y Apellidos Completos (Mínimo 4 palabras)
-                final palabrasNombre = presNombre
-                    .split(RegExp(r'\s+'))
-                    .where((p) => p.isNotEmpty)
-                    .toList();
-                if (palabrasNombre.length < 4) {
-                  _mostrarMensaje(
-                    'Debe ingresar los dos nombres y dos apellidos completos del Presidente',
-                    Colors.orange,
-                  );
-                  return;
-                }
-
-                // 3. Validar Cédula (Exactamente 10 dígitos numéricos)
-                final esCedulaValida = RegExp(r'^\d{10}$').hasMatch(presCedula);
-                if (!esCedulaValida) {
-                  _mostrarMensaje(
-                    'La cédula de identidad debe tener exactamente 10 dígitos',
-                    Colors.orange,
-                  );
-                  return;
-                }
-
-                // 4. Validar Teléfono (Exactamente 10 dígitos numéricos)
-                final esTelefonoValido = RegExp(
-                  r'^\d{10}$',
-                ).hasMatch(presTelefono);
-                if (!esTelefonoValido) {
-                  _mostrarMensaje(
-                    'El número de teléfono debe tener exactamente 10 dígitos',
-                    Colors.orange,
-                  );
-                  return;
-                }
-
-                // 5. Validar Correo Electrónico
-                final esEmailValido = RegExp(
-                  r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                ).hasMatch(presEmail);
-                if (!esEmailValido) {
-                  _mostrarMensaje(
-                    'Ingrese un correo electrónico válido (ejemplo@dominio.com)',
-                    Colors.orange,
-                  );
-                  return;
-                }
-
-                Navigator.pop(context);
-
-                try {
-                  final datos = {
-                    'nombre': nombreLiga,
-                    'presidente_nombre': presNombre,
-                    'presidente_cedula': presCedula,
-                    'presidente_telefono': presTelefono,
-                    'presidente_email': presEmail,
-                  };
-
-                  if (esEdicion) {
-                    await _supabase
-                        .from('ligas')
-                        .update(datos)
-                        .eq('id', ligaExistente['id']);
-                    _mostrarMensaje(
-                      'Liga actualizada correctamente',
-                      Colors.green,
-                    );
-                  } else {
-                    await _supabase.from('ligas').insert(datos);
-                    _mostrarMensaje(
-                      'Liga registrada correctamente',
-                      Colors.green,
-                    );
-                  }
-                  _cargarLigas();
-                } catch (e) {
-                  _mostrarMensaje('Error al guardar: $e', Colors.red);
-                }
-              },
-              child: Text(esEdicion ? 'Guardar Cambios' : 'Registrar Liga'),
-            ),
-          ],
+            );
+          },
         );
       },
-    );
-  }
-
-  // Confirmar y ELIMINAR Liga
-  void _confirmarEliminarLiga(Map<String, dynamic> liga) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Confirmar Eliminación'),
-          content: Text('¿Deseas eliminar la liga "${liga['nombre']}"?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () async {
-                Navigator.pop(context);
-                try {
-                  await _supabase.from('ligas').delete().eq('id', liga['id']);
-                  _mostrarMensaje('Liga eliminada', Colors.orange);
-                  _cargarLigas();
-                } catch (e) {
-                  _mostrarMensaje('Error al eliminar: $e', Colors.red);
-                }
-              },
-              child: const Text(
-                'Eliminar',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _cerrarSesion() async {
-    await _supabase.auth.signOut();
-    if (!mounted) return;
-    Navigator.pushReplacementNamed(context, '/');
-  }
-
-  void _mostrarMensaje(String mensaje, Color color) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: color,
-        behavior: SnackBarBehavior.floating,
-      ),
     );
   }
 
@@ -345,107 +177,70 @@ class _PantallaSuperadminState extends State<PantallaSuperadmin> {
         title: const Text('Panel de Superadministrador'),
         backgroundColor: const Color(0xFF1A3160),
         foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Cerrar Sesión',
-            onPressed: _cerrarSesion,
-          ),
-        ],
       ),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
           : Padding(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Ligas Registradas',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1A3160),
-                        ),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: () => _mostrarDialogoLiga(),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Nueva Liga'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1A3160),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                    ],
+                  const Text(
+                    'Ligas Registradas y Asignaciones',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A3160),
+                    ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   Expanded(
                     child: _ligas.isEmpty
-                        ? const Center(
-                            child: Text('No hay ligas registradas aún.'),
-                          )
+                        ? const Center(child: Text('No hay ligas registradas.'))
                         : ListView.builder(
                             itemCount: _ligas.length,
                             itemBuilder: (context, index) {
                               final liga = _ligas[index];
-                              final presNombre =
-                                  liga['presidente_nombre'] ?? 'Sin asignar';
-                              final presTel =
-                                  liga['presidente_telefono'] ?? 'N/A';
+                              final perfil = liga['perfiles'];
+                              final adminNombre = perfil != null
+                                  ? perfil['nombre']
+                                  : 'Sin asignar';
 
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 12),
-                                elevation: 2,
                                 child: ListTile(
                                   leading: const CircleAvatar(
                                     backgroundColor: Color(0xFF1A3160),
                                     child: Icon(
-                                      Icons.emoji_events,
+                                      Icons.sports_soccer,
                                       color: Colors.white,
                                     ),
                                   ),
                                   title: Text(
-                                    liga['nombre'] ?? 'Liga sin nombre',
+                                    liga['nombre'] ?? 'Sin nombre',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      fontSize: 16,
                                     ),
                                   ),
                                   subtitle: Text(
-                                    'Presidente: $presNombre | Tel: $presTel',
+                                    'Categoría: ${liga['categoria'] ?? "General"} | Admin: $adminNombre',
                                   ),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.edit,
-                                          color: Colors.blue,
-                                        ),
-                                        tooltip:
-                                            'Editar Liga / Ver Información',
-                                        onPressed: () => _mostrarDialogoLiga(
-                                          ligaExistente: liga,
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.delete,
-                                          color: Colors.red,
-                                        ),
-                                        tooltip: 'Eliminar Liga',
-                                        onPressed: () =>
-                                            _confirmarEliminarLiga(liga),
-                                      ),
-                                    ],
+                                  trailing: ElevatedButton.icon(
+                                    onPressed: () =>
+                                        _abrirDialogoAsignarAdmin(liga),
+                                    icon: const Icon(
+                                      Icons.person_add,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      liga['admin_id'] == null
+                                          ? 'Asignar Admin'
+                                          : 'Reasignar Admin',
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF1A3160),
+                                      foregroundColor: Colors.white,
+                                    ),
                                   ),
                                 ),
                               );
