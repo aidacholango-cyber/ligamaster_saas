@@ -13,7 +13,7 @@ class _PantallaAdminLigaState extends State<PantallaAdminLiga> {
   final LigaService _ligaService = LigaService();
   final TextEditingController _nombreEquipoController = TextEditingController();
 
-  // Lista de categorías requeridas
+  // Categorías predefinidas
   final List<String> _categorias = [
     'Fútbol Masculino',
     'Fútbol Femenino',
@@ -22,6 +22,10 @@ class _PantallaAdminLigaState extends State<PantallaAdminLiga> {
   ];
   String? _categoriaSeleccionada;
 
+  // Manejo de Delegados
+  List<Map<String, dynamic>> _delegados = [];
+  String? _delegadoSeleccionadoId;
+
   String? _ligaId;
   bool _cargando = true;
 
@@ -29,12 +33,13 @@ class _PantallaAdminLigaState extends State<PantallaAdminLiga> {
   void initState() {
     super.initState();
     _categoriaSeleccionada = _categorias.first;
-    _cargarLigaAdmin();
+    _cargarDatosIniciales();
   }
 
-  Future<void> _cargarLigaAdmin() async {
+  Future<void> _cargarDatosIniciales() async {
     final user = Supabase.instance.client.auth.currentUser;
     try {
+      // 1. Obtener ID de la liga
       if (user != null) {
         final ligaData = await Supabase.instance.client
             .from('ligas')
@@ -58,8 +63,28 @@ class _PantallaAdminLigaState extends State<PantallaAdminLiga> {
           _ligaId = primeraLiga['id'] as String?;
         }
       }
+
+      // 2. Cargar lista de delegados desde la tabla perfiles
+      final respuestaPerfiles = await Supabase.instance.client
+          .from('perfiles')
+          .select('id, nombre, email')
+          .eq('rol', 'delegado');
+
+      _delegados = List<Map<String, dynamic>>.from(respuestaPerfiles);
+
+      // Si no hay usuarios con rol delegado, carga todos los perfiles como alternativa
+      if (_delegados.isEmpty) {
+        final todosPerfiles = await Supabase.instance.client
+            .from('perfiles')
+            .select('id, nombre, email');
+        _delegados = List<Map<String, dynamic>>.from(todosPerfiles);
+      }
+
+      if (_delegados.isNotEmpty) {
+        _delegadoSeleccionadoId = _delegados.first['id'].toString();
+      }
     } catch (e) {
-      print('Error al identificar liga: $e');
+      print('Error al cargar datos iniciales: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -89,36 +114,61 @@ class _PantallaAdminLigaState extends State<PantallaAdminLiga> {
           builder: (context, setDialogState) {
             return AlertDialog(
               title: const Text('Registrar Nuevo Equipo'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: _nombreEquipoController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nombre del Equipo',
-                      border: OutlineInputBorder(),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: _nombreEquipoController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nombre del Equipo',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: _categoriaSeleccionada,
-                    decoration: const InputDecoration(
-                      labelText: 'Categoría',
-                      border: OutlineInputBorder(),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: _categoriaSeleccionada,
+                      decoration: const InputDecoration(
+                        labelText: 'Categoría',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _categorias.map((String categoria) {
+                        return DropdownMenuItem<String>(
+                          value: categoria,
+                          child: Text(categoria),
+                        );
+                      }).toList(),
+                      onChanged: (String? nuevoValor) {
+                        setDialogState(() {
+                          _categoriaSeleccionada = nuevoValor;
+                        });
+                      },
                     ),
-                    items: _categorias.map((String categoria) {
-                      return DropdownMenuItem<String>(
-                        value: categoria,
-                        child: Text(categoria),
-                      );
-                    }).toList(),
-                    onChanged: (String? nuevoValor) {
-                      setDialogState(() {
-                        _categoriaSeleccionada = nuevoValor;
-                      });
-                    },
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: _delegadoSeleccionadoId,
+                      decoration: const InputDecoration(
+                        labelText: 'Seleccionar Delegado',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _delegados.map((delegado) {
+                        final nombre =
+                            delegado['nombre'] ??
+                            delegado['email'] ??
+                            'Sin nombre';
+                        return DropdownMenuItem<String>(
+                          value: delegado['id'].toString(),
+                          child: Text(nombre),
+                        );
+                      }).toList(),
+                      onChanged: (String? nuevoDelegadoId) {
+                        setDialogState(() {
+                          _delegadoSeleccionadoId = nuevoDelegadoId;
+                        });
+                      },
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -127,18 +177,46 @@ class _PantallaAdminLigaState extends State<PantallaAdminLiga> {
                 ),
                 ElevatedButton(
                   onPressed: () async {
-                    if (_nombreEquipoController.text.trim().isNotEmpty) {
-                      final user = Supabase.instance.client.auth.currentUser;
+                    final nombre = _nombreEquipoController.text.trim();
+                    if (nombre.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Por favor ingrese el nombre del equipo.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (_delegadoSeleccionadoId == null ||
+                        _delegadoSeleccionadoId!.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Por favor seleccione un delegado.'),
+                        ),
+                      );
+                      return;
+                    }
+
+                    try {
                       await _ligaService.crearEquipo(
-                        nombre: _nombreEquipoController.text.trim(),
+                        nombre: nombre,
                         categoria: _categoriaSeleccionada ?? 'Fútbol Masculino',
                         ligaId: _ligaId ?? '',
-                        delegadoId: user?.id ?? '',
+                        delegadoId: _delegadoSeleccionadoId!,
                       );
                       _nombreEquipoController.clear();
                       if (mounted) {
                         Navigator.pop(context);
                         setState(() {});
+                      }
+                    } catch (e) {
+                      print('Error al crear equipo: $e');
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error al guardar: $e')),
+                        );
                       }
                     }
                   },
