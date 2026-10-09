@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'pantalla_fixture.dart';
 import 'pantalla_posiciones.dart';
+import 'pantalla_goleadores.dart';
 
 const _categorias = ['Fútbol Senior', 'Femenino', 'Sub 40', 'Sub 12'];
 const _formatos = {
@@ -300,6 +301,22 @@ class _PantallaCampeonatosState extends State<PantallaCampeonatos> {
                                   },
                                   icon: const Icon(Icons.leaderboard_outlined),
                                   label: const Text('Posiciones'),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: () {
+                                    final tema = Theme.of(context);
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => Theme(
+                                          data: tema,
+                                          child: PantallaGoleadores(campeonato: c),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.sports_soccer),
+                                  label: const Text('Goleadores'),
                                 ),
                               ],
                             ),
