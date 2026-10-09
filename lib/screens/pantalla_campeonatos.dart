@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'pantalla_fixture.dart';
+import 'pantalla_posiciones.dart';
 
 const _categorias = ['Fútbol Senior', 'Femenino', 'Sub 40', 'Sub 12'];
 const _formatos = {
@@ -283,6 +284,22 @@ class _PantallaCampeonatosState extends State<PantallaCampeonatos> {
                                     Icons.calendar_month_outlined,
                                   ),
                                   label: const Text('Fixture'),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: () {
+                                    final tema = Theme.of(context);
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => Theme(
+                                          data: tema,
+                                          child: PantallaPosiciones(campeonato: c),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.leaderboard_outlined),
+                                  label: const Text('Posiciones'),
                                 ),
                               ],
                             ),
