@@ -1,8 +1,10 @@
+import '../widgets/estilo_panel.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/dialogo_nuevo_responsable.dart';
+import '../widgets/imagen_cedula.dart';
 import 'pantalla_campeonatos.dart';
 
 class PantallaAdminLiga extends StatelessWidget {
@@ -654,7 +656,7 @@ class __ContenidoAdminLigaState extends State<_ContenidoAdminLiga> {
           ? const Center(child: CircularProgressIndicator())
           : Center(
               child: Container(
-                constraints: const BoxConstraints(maxWidth: 1040),
+                constraints: const BoxConstraints(maxWidth: 1000),
                 margin: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8F6FB),
@@ -663,7 +665,7 @@ class __ContenidoAdminLigaState extends State<_ContenidoAdminLiga> {
                 child: Padding(
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Center(
                         child: Column(
@@ -745,6 +747,7 @@ class __ContenidoAdminLigaState extends State<_ContenidoAdminLiga> {
                       ),
                       const SizedBox(height: 20),
                       Wrap(
+                        alignment: WrapAlignment.center,
                         spacing: 16,
                         runSpacing: 8,
                         crossAxisAlignment: WrapCrossAlignment.center,
@@ -1229,7 +1232,7 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
     }
   }
 
-  Widget _cuadroFoto(String titulo, String url) {
+  Widget _cuadroFoto(String titulo, String url, {bool documento = false}) {
     return Column(
       children: [
         Text(titulo, textAlign: TextAlign.center),
@@ -1249,6 +1252,8 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
                     textAlign: TextAlign.center,
                   ),
                 )
+              : documento
+              ? ImagenCedula(referencia: url)
               : Image.network(
                   url,
                   fit: BoxFit.contain,
@@ -1307,6 +1312,7 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
                       child: _cuadroFoto(
                         'Cédula (parte delantera)',
                         jugador['foto_cedula_url']?.toString().trim() ?? '',
+                        documento: true,
                       ),
                     ),
                   ],
@@ -1365,7 +1371,7 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
       ),
       body: Center(
         child: Container(
-          constraints: const BoxConstraints(maxWidth: 1040),
+          constraints: const BoxConstraints(maxWidth: 1000),
           margin: const EdgeInsets.all(16),
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -1438,22 +1444,25 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
-                  DropdownButton<String>(
-                    isExpanded: true,
-                    value: seleccion,
-                    hint: const Text('Todas las categorías'),
-                    items: [
-                      const DropdownMenuItem<String>(
-                        value: null,
-                        child: Text('Todas las categorías'),
-                      ),
-                      ...categorias.map(
-                        (c) => DropdownMenuItem(value: c, child: Text(c)),
-                      ),
-                    ],
-                    onChanged: (valor) => setState(() {
-                      _categoria = valor;
-                    }),
+                  ControlCentrado(
+                    ancho: 360,
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      value: seleccion,
+                      hint: const Text('Todas las categorías'),
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: null,
+                          child: Text('Todas las categorías'),
+                        ),
+                        ...categorias.map(
+                          (c) => DropdownMenuItem(value: c, child: Text(c)),
+                        ),
+                      ],
+                      onChanged: (valor) => setState(() {
+                        _categoria = valor;
+                      }),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Expanded(
@@ -1618,53 +1627,7 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
   );
 }
 
-ThemeData _temaAdmin() {
-  const indigo = Color(0xFF4351BF);
-  final base = ThemeData(
-    useMaterial3: true,
-    brightness: Brightness.light,
-    fontFamily: 'Roboto',
-  );
-  return base.copyWith(
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: indigo,
-      brightness: Brightness.light,
-    ).copyWith(primary: indigo, surface: const Color(0xFFF8F6FB)),
-    scaffoldBackgroundColor: const Color(0xFFF2F2F5),
-    textTheme: base.textTheme.apply(
-      bodyColor: const Color(0xFF49454F),
-      displayColor: const Color(0xFF49454F),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: const Color(0xFFF8F6FB),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(5)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: indigo,
-        foregroundColor: Colors.white,
-        minimumSize: const Size(100, 44),
-        textStyle: const TextStyle(
-          fontFamily: 'Roboto',
-          fontWeight: FontWeight.w700,
-          fontSize: 14,
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: indigo,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(foregroundColor: indigo),
-    ),
-  );
-}
+ThemeData _temaAdmin() => temaLigaMaster();
 
 class _AdminDialog extends StatelessWidget {
   const _AdminDialog({
@@ -1713,7 +1676,7 @@ class _AdminDialog extends StatelessWidget {
           if (title != null) title!,
         ],
       ),
-      content: SizedBox(width: 460, child: content),
+      content: SizedBox(width: 620, child: content),
       actions: actions,
     ),
   );

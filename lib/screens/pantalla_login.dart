@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import './pantalla_superadmin.dart';
 import 'pantalla_admin_liga.dart';
 import 'pantalla_delegado.dart';
+import 'pantalla_vocal.dart';
 
 class PantallaLogin extends StatefulWidget {
   const PantallaLogin({super.key});
@@ -22,6 +23,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
     'Superadministrador',
     'Administrador de Liga',
     'Delegado del equipo',
+    'Vocal',
   ];
 
   @override
@@ -33,13 +35,19 @@ class _PantallaLoginState extends State<PantallaLogin> {
 
   Future<void> _iniciarSesion() async {
     if (_cargando) return;
-    final email = _emailController.text.trim();
+    final usuarioIngresado = _emailController.text.trim();
+    final email =
+        _rolSeleccionado == 'Vocal' &&
+            usuarioIngresado.toLowerCase() == 'vocal2026'
+        ? 'vocal2026@ligamaster.invalid'
+        : usuarioIngresado;
     final password = _passwordController.text;
     final rolElegido = _rolSeleccionado;
     const roles = {
       'Superadministrador': 'superadmin',
       'Administrador de Liga': 'admin',
       'Delegado del equipo': 'club',
+      'Vocal': 'vocal',
     };
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -62,7 +70,12 @@ class _PantallaLoginState extends State<PantallaLogin> {
           .select('rol')
           .eq('id', usuario.id)
           .maybeSingle();
-      final rol = perfil?['rol']?.toString();
+      final vocalActivo =
+          rolElegido == 'Vocal' && await db.rpc('lm_es_vocal') == true;
+      if (rolElegido == 'Vocal' && !vocalActivo) {
+        throw StateError('Esta cuenta todavía no está habilitada como vocal.');
+      }
+      final rol = vocalActivo ? 'vocal' : perfil?['rol']?.toString();
       if (rol == null || !roles.values.contains(rol)) {
         throw StateError(
           'Tu cuenta no tiene un rol asignado. Contacta al superadministrador.',
@@ -85,6 +98,8 @@ class _PantallaLoginState extends State<PantallaLogin> {
         if (ligas.isEmpty)
           throw StateError('Tu cuenta no tiene una liga asignada.');
         destino = const PantallaAdminLiga();
+      } else if (rol == 'vocal') {
+        destino = const PantallaVocal();
       } else {
         final equipos = await db
             .from('equipos')
@@ -102,6 +117,11 @@ class _PantallaLoginState extends State<PantallaLogin> {
         MaterialPageRoute(builder: (_) => destino),
         (_) => false,
       );
+    } on PostgrestException catch (e) {
+      error =
+          rolElegido == 'Vocal' && (e.code == 'PGRST202' || e.code == '42883')
+          ? 'Falta instalar el módulo del vocal en Supabase.'
+          : 'No se pudo verificar el permiso de la cuenta.';
     } on AuthException {
       error = 'No se pudo iniciar sesión. Comprueba el correo y la contraseña.';
     } on StateError catch (e) {
@@ -214,8 +234,10 @@ class _PantallaLoginState extends State<PantallaLogin> {
                     TextField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Correo electrónico',
+                      decoration: InputDecoration(
+                        labelText: _rolSeleccionado == 'Vocal'
+                            ? 'Usuario o correo'
+                            : 'Correo electrónico',
                         prefixIcon: Icon(
                           Icons.email_outlined,
                           color: Colors.black54,

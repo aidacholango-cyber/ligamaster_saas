@@ -1,4 +1,7 @@
+import '../widgets/estilo_panel.dart';
 import 'dart:typed_data';
+import '../widgets/imagen_cedula.dart';
+import 'resumen_superadmin.dart';
 import 'package:flutter/material.dart';
 import '../widgets/dialogo_nuevo_responsable.dart';
 import 'package:image_picker/image_picker.dart';
@@ -12,34 +15,140 @@ class PantallaSuperAdmin extends StatefulWidget {
 }
 
 class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
-  // Etiqueta reutilizable para los encabezados de estado de los jugadores.
-  Widget _encabezadoEstado({
-    required String texto,
-    required Color fondo,
-    required Color textoColor,
-  }) {
-    return SizedBox(
-      width: 70,
-      child: Container(
-        height: 30,
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 3),
-        decoration: BoxDecoration(
-          color: fondo,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: textoColor.withOpacity(0.22)),
+  Future<List<Map<String, dynamic>>> _leerFilas(
+    String tabla, [
+    Map<String, Object> filtros = const {},
+  ]) async {
+    final filas = <Map<String, dynamic>>[];
+    var inicio = 0;
+    while (true) {
+      var consulta = Supabase.instance.client.from(tabla).select();
+      for (final filtro in filtros.entries) {
+        consulta = consulta.eq(filtro.key, filtro.value);
+      }
+      final pagina = await consulta.order('id').range(inicio, inicio + 499);
+      if (pagina.isEmpty) return filas;
+      filas.addAll(pagina);
+      inicio += pagina.length;
+    }
+  }
+
+  Future<String> _subirImagen(
+    Uint8List bytes,
+    String bucket,
+    String carpeta,
+  ) async {
+    if (bytes.length > 5 * 1024 * 1024) {
+      throw StateError('La imagen supera el límite de 5 MB.');
+    }
+    String? mime;
+    String? extension;
+    if (bytes.length >= 8 &&
+        bytes[0] == 137 &&
+        bytes[1] == 80 &&
+        bytes[2] == 78 &&
+        bytes[3] == 71) {
+      mime = 'image/png';
+      extension = 'png';
+    } else if (bytes.length >= 3 &&
+        bytes[0] == 255 &&
+        bytes[1] == 216 &&
+        bytes[2] == 255) {
+      mime = 'image/jpeg';
+      extension = 'jpg';
+    } else if (bytes.length >= 12 &&
+        String.fromCharCodes(bytes.take(4)) == 'RIFF' &&
+        String.fromCharCodes(bytes.skip(8).take(4)) == 'WEBP') {
+      mime = 'image/webp';
+      extension = 'webp';
+    }
+    if (mime == null) {
+      throw StateError('Selecciona una imagen JPG, PNG o WebP.');
+    }
+    final storage = Supabase.instance.client.storage.from(bucket);
+    final ruta = '$carpeta/${DateTime.now().microsecondsSinceEpoch}.$extension';
+    await storage.uploadBinary(
+      ruta,
+      bytes,
+      fileOptions: FileOptions(contentType: mime),
+    );
+    return storage.getPublicUrl(ruta);
+  }
+
+  void _errorOperacion(BuildContext ctx, Object error) {
+    final mensaje = error is PostgrestException
+        ? (error.code == '23503'
+              ? 'Este registro tiene información relacionada. No se puede borrar mientras conserve ese historial.'
+              : error.message)
+        : error is StateError
+        ? error.message.toString()
+        : 'No se pudo completar la operación. Revisa la conexión y los permisos de tu cuenta.';
+    if (ctx.mounted) {
+      _mostrarAlertaFrontal(ctx, 'Operación no completada', mensaje);
+    }
+  }
+
+  void _verFicha(Map<String, dynamic> jugador) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _LigaDialog(
+        title: Text(
+          '${jugador['nombres'] ?? ''} ${jugador['apellidos'] ?? ''}',
         ),
-        child: Text(
-          texto,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            color: textoColor,
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if ((jugador['foto_url'] ?? '').toString().isNotEmpty)
+              Center(
+                child: Image.network(
+                  jugador['foto_url'],
+                  height: 150,
+                  errorBuilder: (_, error, stack) =>
+                      const Icon(Icons.person, size: 60),
+                ),
+              ),
+            const SizedBox(height: 12),
+            const Text(
+              'Cédula (frente)',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            SizedBox(
+              height: 180,
+              width: double.infinity,
+              child: ImagenCedula(
+                referencia: (jugador['foto_cedula_url'] ?? '').toString(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            for (final campo in const {
+              'cedula': 'Cédula',
+              'categoria': 'Categoría',
+              'num_camiseta': 'Camiseta',
+              'fecha_nacimiento': 'Nacimiento',
+              'posicion': 'Posición',
+              'tipo_jugador': 'Tipo de jugador',
+              'email': 'Correo',
+              'direccion': 'Dirección',
+              'telefono': 'Teléfono',
+              'estado': 'Estado',
+              'observaciones': 'Observaciones',
+              'revisado_por': 'Revisado por',
+              'calificado_por': 'Calificado por',
+            }.entries)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  '${campo.value}: ${jugador[campo.key] ?? 'Sin registrar'}',
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cerrar'),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -202,12 +311,6 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
         ? equipo['categoria']
         : 'Fútbol Senior';
 
-    // Los estados comienzan en gris y se activan únicamente al pulsarlos.
-    // Se mantienen mientras esta ventana de jugadores permanezca abierta.
-    final estadosInscritosActivos = <String>{};
-    final estadosRevisadosActivos = <String>{};
-    final estadosCalificadosActivos = <String>{};
-
     showDialog(
       context: context,
       builder: (context) {
@@ -232,12 +335,18 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                         foregroundColor: Colors.white,
                       ),
                       onPressed: () async {
-                        await Supabase.instance.client
-                            .from('jugadores')
-                            .delete()
-                            .eq('id', jugador['id']);
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        setJugadoresState(() {});
+                        try {
+                          await Supabase.instance.client
+                              .from('jugadores')
+                              .delete()
+                              .eq('id', jugador['id'])
+                              .select('id')
+                              .single();
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          setJugadoresState(() {});
+                        } catch (e) {
+                          if (ctx.mounted) _errorOperacion(ctx, e);
+                        }
                       },
                       child: const Text('Eliminar'),
                     ),
@@ -324,13 +433,16 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                 'VOLANTE DERECHO',
                 'DELANTERO',
               ];
+              final posicionActual = (jugadorEditar?['posicion'] ?? '')
+                  .toString();
+              if (posicionActual.isNotEmpty &&
+                  !posicionesDisponibles.contains(posicionActual)) {
+                posicionesDisponibles.add(posicionActual);
+              }
               String posicionSeleccionada =
                   posicionesDisponibles.contains(jugadorEditar?['posicion'])
                   ? jugadorEditar!['posicion']
                   : posicionesDisponibles.first;
-
-              String estadoSeleccionado =
-                  jugadorEditar?['estado'] ?? 'Calificado';
 
               Uint8List? fotoJugadorBytes;
               Uint8List? cedulaFotoBytes;
@@ -483,6 +595,15 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                                                   cedulaFotoBytes!,
                                                   fit: BoxFit.cover,
                                                 ),
+                                              )
+                                            : (jugadorEditar?['foto_cedula_url'] ??
+                                                      '')
+                                                  .toString()
+                                                  .isNotEmpty
+                                            ? ImagenCedula(
+                                                referencia:
+                                                    jugadorEditar!['foto_cedula_url']
+                                                        .toString(),
                                               )
                                             : const Column(
                                                 mainAxisAlignment:
@@ -884,99 +1005,8 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                               ),
                               const SizedBox(height: 12),
 
-                              // 11. Selector de Estado
-                              Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                    color: const Color(0xFF4351BF),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: InkWell(
-                                        onTap: () => setFormState(
-                                          () => estadoSeleccionado = 'Inscrito',
-                                        ),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 10,
-                                          ),
-                                          color:
-                                              estadoSeleccionado == 'Inscrito'
-                                              ? const Color(0xFFD6DBE9)
-                                              : Colors.transparent,
-                                          child: const Text(
-                                            'Inscrito',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              color: Color(0xFF4351BF),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Container(
-                                      width: 1,
-                                      height: 35,
-                                      color: const Color(0xFF4351BF),
-                                    ),
-                                    Expanded(
-                                      child: InkWell(
-                                        onTap: () => setFormState(
-                                          () => estadoSeleccionado = 'Revisado',
-                                        ),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 10,
-                                          ),
-                                          color:
-                                              estadoSeleccionado == 'Revisado'
-                                              ? const Color(0xFFD6DBE9)
-                                              : Colors.transparent,
-                                          child: const Text(
-                                            'Revisado',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              color: Color(0xFF4351BF),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Container(
-                                      width: 1,
-                                      height: 35,
-                                      color: const Color(0xFF4351BF),
-                                    ),
-                                    Expanded(
-                                      child: InkWell(
-                                        onTap: () => setFormState(
-                                          () =>
-                                              estadoSeleccionado = 'Calificado',
-                                        ),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 10,
-                                          ),
-                                          color:
-                                              estadoSeleccionado == 'Calificado'
-                                              ? const Color(0xFFD6DBE9)
-                                              : Colors.transparent,
-                                          child: const Text(
-                                            'Calificado',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              color: Color(0xFF4351BF),
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              const Text(
+                                'Los jugadores nuevos ingresan como Inscrito. Una modificación de la ficha requiere una nueva revisión.',
                               ),
                               const SizedBox(height: 16),
                             ],
@@ -1102,8 +1132,9 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                                           if (jugadorEditar != null &&
                                               reg['id'].toString() ==
                                                   jugadorEditar['id']
-                                                      .toString())
+                                                      .toString()) {
                                             continue;
+                                          }
                                           final regEquipoId = reg['equipo_id'];
                                           final regCat = reg['categoria'];
 
@@ -1146,44 +1177,49 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                                     String? fotoUrl =
                                         jugadorEditar?['foto_url'];
                                     if (fotoJugadorBytes != null) {
-                                      final path =
-                                          'jugador_${DateTime.now().millisecondsSinceEpoch}.png';
-                                      await Supabase.instance.client.storage
-                                          .from('fotos_jugadores')
-                                          .uploadBinary(
-                                            path,
-                                            fotoJugadorBytes!,
-                                          );
-
-                                      fotoUrl = Supabase.instance.client.storage
-                                          .from('fotos_jugadores')
-                                          .getPublicUrl(path);
+                                      fotoUrl = await _subirImagen(
+                                        fotoJugadorBytes!,
+                                        'fotos_jugadores',
+                                        parsedEquipoId.toString(),
+                                      );
                                     }
 
+                                    String? cedulaUrl =
+                                        jugadorEditar?['foto_cedula_url'];
+                                    if (cedulaFotoBytes != null) {
+                                      cedulaUrl = await _subirImagen(
+                                        cedulaFotoBytes!,
+                                        'cedulas_jugadores',
+                                        parsedEquipoId.toString(),
+                                      );
+                                    }
                                     final Map<String, dynamic> datosInsertar = {
                                       'equipo_id': parsedEquipoId,
                                       'nombres': nom,
                                       'apellidos': ape,
                                       'cedula': cedulaTexto,
-                                      'num_camiseta': numCamisetaCtrl.text
-                                          .trim(),
+                                      'num_camiseta': int.tryParse(
+                                        numCamisetaCtrl.text.trim(),
+                                      ),
                                       'fecha_nacimiento': fechaNacCtrl.text
-                                          .trim(),
-                                      'edad': edadCtrl.text.trim(),
+                                          .trim()
+                                          .split('/')
+                                          .reversed
+                                          .join('-'),
                                       'posicion': posicionSeleccionada,
                                       'email': emailCtrl.text.trim(),
                                       'direccion': direccionCtrl.text.trim(),
                                       'telefono': telefonoCtrl.text.trim(),
-                                      'estado': estadoSeleccionado,
+                                      if (jugadorEditar == null)
+                                        'estado': 'Inscrito',
                                       'categoria': categoriaSeleccionadaModal,
                                     };
 
-                                    if (jugadorEditar?.containsKey(
-                                          'tipo_jugador',
-                                        ) ??
-                                        false) {
-                                      datosInsertar['tipo_jugador'] =
-                                          tipoJugadorCtrl.text.trim();
+                                    datosInsertar['tipo_jugador'] =
+                                        tipoJugadorCtrl.text.trim();
+                                    if (cedulaUrl != null) {
+                                      datosInsertar['foto_cedula_url'] =
+                                          cedulaUrl;
                                     }
                                     if (fotoUrl != null) {
                                       datosInsertar['foto_url'] = fotoUrl;
@@ -1193,7 +1229,9 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                                       await Supabase.instance.client
                                           .from('jugadores')
                                           .update(datosInsertar)
-                                          .eq('id', jugadorEditar['id']);
+                                          .eq('id', jugadorEditar['id'])
+                                          .select('id')
+                                          .single();
                                     } else {
                                       await Supabase.instance.client
                                           .from('jugadores')
@@ -1306,54 +1344,13 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // ENCABEZADO DE ESTADOS: usa los mismos anchos que cada fila
-                    // para que los títulos queden centrados sobre sus iconos.
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          SizedBox(
-                            width: 326,
-                            child: Row(
-                              children: [
-                                _encabezadoEstado(
-                                  texto: 'Inscrito',
-                                  fondo: const Color(0xFFE8F5E9),
-                                  textoColor: const Color(0xFF2E7D32),
-                                ),
-                                const SizedBox(width: 4),
-                                _encabezadoEstado(
-                                  texto: 'Revisado',
-                                  fondo: const Color(0xFFFFF3E0),
-                                  textoColor: const Color(0xFFEF6C00),
-                                ),
-                                const SizedBox(width: 4),
-                                _encabezadoEstado(
-                                  texto: 'Calificado',
-                                  fondo: const Color(0xFFE8EAF6),
-                                  textoColor: const Color(0xFF3949AB),
-                                ),
-                                const SizedBox(width: 12),
-                                const SizedBox(width: 48),
-                                const SizedBox(width: 48),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                     const Divider(height: 1),
                     Flexible(
                       child: FutureBuilder<List<Map<String, dynamic>>>(
-                        future: Supabase.instance.client
-                            .from('jugadores')
-                            .select('*')
-                            .eq(
-                              'equipo_id',
-                              int.tryParse(equipoId.toString()) ?? equipoId,
-                            )
-                            .eq('categoria', categoriaFiltro),
+                        future: _leerFilas('jugadores', {
+                          'equipo_id': equipoId,
+                          'categoria': categoriaFiltro,
+                        }),
                         builder: (context, snapshot) {
                           if (snapshot.connectionState ==
                               ConnectionState.waiting) {
@@ -1380,36 +1377,15 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                             itemCount: jugadores.length,
                             itemBuilder: (context, index) {
                               final jugador = jugadores[index];
-                              final fotoUrl = jugador['foto_url'];
+                              final fotoUrl =
+                                  jugador['foto_url'] ??
+                                  jugador['foto_perfil_url'];
                               final nombreJugador =
                                   jugador['nombre'] ??
                                   '${jugador['nombres'] ?? ''} ${jugador['apellidos'] ?? ''}'
                                       .trim();
                               final cedulaJugador = jugador['cedula'] ?? 'N/A';
                               final posicion = jugador['posicion'] ?? 'N/A';
-                              final jugadorId = jugador['id'].toString();
-
-                              final fechaInscrito =
-                                  jugador['created_at'] != null
-                                  ? jugador['created_at']
-                                        .toString()
-                                        .split('T')
-                                        .first
-                                  : '20/09/2026';
-                              final comentarioRevisado =
-                                  jugador['comentario_revision'] ??
-                                  'Sin observaciones por el administrador.';
-                              final calificadoPor =
-                                  jugador['calificado_por'] ??
-                                  'admin@ligamaster.com';
-
-                              // Todos aparecen grises al abrir la ventana.
-                              final esInscrito = estadosInscritosActivos
-                                  .contains(jugadorId);
-                              final esRevisado = estadosRevisadosActivos
-                                  .contains(jugadorId);
-                              final esCalificado = estadosCalificadosActivos
-                                  .contains(jugadorId);
 
                               return ListTile(
                                 leading: CircleAvatar(
@@ -1438,106 +1414,20 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    // 1. VISTO INSCRITO
-                                    SizedBox(
-                                      width: 70,
-                                      child: IconButton(
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                        icon: Icon(
-                                          Icons.check_circle,
-                                          color: esInscrito
-                                              ? Colors.green
-                                              : Colors.grey.shade400,
-                                          size: 24,
-                                        ),
-                                        tooltip: 'Ver Fecha de Inscripción',
-                                        onPressed: () {
-                                          setJugadoresState(() {
-                                            esInscrito
-                                                ? estadosInscritosActivos
-                                                      .remove(jugadorId)
-                                                : estadosInscritosActivos.add(
-                                                    jugadorId,
-                                                  );
-                                          });
-                                          _mostrarAlertaFrontal(
-                                            context,
-                                            'Fecha de Inscripción',
-                                            'El jugador fue inscrito el: $fechaInscrito',
-                                          );
-                                        },
+                                    Chip(
+                                      label: Text(
+                                        (jugador['estado'] ?? 'Inscrito')
+                                            .toString(),
                                       ),
                                     ),
-                                    const SizedBox(width: 4),
-
-                                    // 2. VISTO REVISADO
-                                    SizedBox(
-                                      width: 70,
-                                      child: IconButton(
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                        icon: Icon(
-                                          Icons.check_circle,
-                                          color: esRevisado
-                                              ? Colors.amber.shade700
-                                              : Colors.grey.shade400,
-                                          size: 24,
-                                        ),
-                                        tooltip: 'Ver Comentario de Revisión',
-                                        onPressed: () {
-                                          setJugadoresState(() {
-                                            esRevisado
-                                                ? estadosRevisadosActivos
-                                                      .remove(jugadorId)
-                                                : estadosRevisadosActivos.add(
-                                                    jugadorId,
-                                                  );
-                                          });
-                                          _mostrarAlertaFrontal(
-                                            context,
-                                            'Comentario del Administrador',
-                                            comentarioRevisado,
-                                          );
-                                        },
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.visibility,
+                                        color: Colors.indigo,
                                       ),
+                                      tooltip: 'Ver ficha y cédula',
+                                      onPressed: () => _verFicha(jugador),
                                     ),
-                                    const SizedBox(width: 4),
-
-                                    // 3. VISTO CALIFICADO
-                                    SizedBox(
-                                      width: 70,
-                                      child: IconButton(
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                        icon: Icon(
-                                          Icons.check_circle,
-                                          color: esCalificado
-                                              ? const Color(0xFF3949AB)
-                                              : Colors.grey.shade400,
-                                          size: 24,
-                                        ),
-                                        tooltip: 'Ver Nombre de Quien Calificó',
-                                        onPressed: () {
-                                          setJugadoresState(() {
-                                            esCalificado
-                                                ? estadosCalificadosActivos
-                                                      .remove(jugadorId)
-                                                : estadosCalificadosActivos.add(
-                                                    jugadorId,
-                                                  );
-                                          });
-                                          _mostrarAlertaFrontal(
-                                            context,
-                                            'Calificado Por',
-                                            'Calificado por: $calificadoPor',
-                                          );
-                                        },
-                                      ),
-                                    ),
-
-                                    const SizedBox(width: 12),
-
                                     // EDITAR
                                     IconButton(
                                       icon: const Icon(
@@ -1756,27 +1646,45 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                         ),
                         ElevatedButton(
                           onPressed: () async {
-                            await Supabase.instance.client
-                                .from('equipos')
-                                .update({
-                                  'nombre': nombreEquipoCtrl.text
-                                      .trim()
-                                      .toUpperCase(),
-                                  'presidente_nombre': presiNombreCtrl.text
-                                      .trim()
-                                      .toUpperCase(),
-                                  'presidente_cedula': presiCedulaCtrl.text
-                                      .trim(),
-                                  'presidente_telefono': presiTelCtrl.text
-                                      .trim(),
-                                  'presidente_correo': presiCorreoCtrl.text
-                                      .trim()
-                                      .toLowerCase(),
-                                })
-                                .eq('id', equipo['id']);
+                            try {
+                              await Supabase.instance.client
+                                  .from('equipos')
+                                  .update({
+                                    if (equipo.containsKey('categoria'))
+                                      'categoria': categoriaSeleccionada,
+                                    'nombre': nombreEquipoCtrl.text
+                                        .trim()
+                                        .toUpperCase(),
+                                    (equipo.containsKey('delegado_nombre')
+                                        ? 'delegado_nombre'
+                                        : 'presidente_nombre'): presiNombreCtrl
+                                        .text
+                                        .trim()
+                                        .toUpperCase(),
+                                    (equipo.containsKey('delegado_cedula')
+                                        ? 'delegado_cedula'
+                                        : 'presidente_cedula'): presiCedulaCtrl
+                                        .text
+                                        .trim(),
+                                    (equipo.containsKey('delegado_telefono')
+                                        ? 'delegado_telefono'
+                                        : 'presidente_telefono'): presiTelCtrl
+                                        .text
+                                        .trim(),
+                                    if (equipo.containsKey('presidente_correo'))
+                                      'presidente_correo': presiCorreoCtrl.text
+                                          .trim()
+                                          .toLowerCase(),
+                                  })
+                                  .eq('id', equipo['id'])
+                                  .select('id')
+                                  .single();
 
-                            if (context.mounted) Navigator.pop(context);
-                            setModalState(() {});
+                              if (context.mounted) Navigator.pop(context);
+                              setModalState(() {});
+                            } catch (e) {
+                              if (context.mounted) _errorOperacion(context, e);
+                            }
                           },
                           child: const Text('Guardar'),
                         ),
@@ -1806,12 +1714,18 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                         foregroundColor: Colors.white,
                       ),
                       onPressed: () async {
-                        await Supabase.instance.client
-                            .from('equipos')
-                            .delete()
-                            .eq('id', equipo['id']);
-                        if (context.mounted) Navigator.pop(context);
-                        setModalState(() {});
+                        try {
+                          await Supabase.instance.client
+                              .from('equipos')
+                              .delete()
+                              .eq('id', equipo['id'])
+                              .select('id')
+                              .single();
+                          if (context.mounted) Navigator.pop(context);
+                          setModalState(() {});
+                        } catch (e) {
+                          if (context.mounted) _errorOperacion(context, e);
+                        }
                       },
                       child: const Text('Eliminar'),
                     ),
@@ -1851,10 +1765,7 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
               content: SizedBox(
                 width: double.maxFinite,
                 child: FutureBuilder<List<Map<String, dynamic>>>(
-                  future: Supabase.instance.client
-                      .from('equipos')
-                      .select('*')
-                      .eq('liga_id', int.tryParse(ligaId) ?? ligaId),
+                  future: _leerFilas('equipos', {'liga_id': ligaId}),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
@@ -1914,6 +1825,12 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                OutlinedButton.icon(
+                                  onPressed: () =>
+                                      _verJugadoresDeEquipo(equipo),
+                                  icon: const Icon(Icons.people, size: 16),
+                                  label: const Text('Jugadores'),
+                                ),
                                 OutlinedButton.icon(
                                   onPressed: () =>
                                       verDetallesPresidente(equipo),
@@ -2033,14 +1950,18 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                   await Supabase.instance.client
                       .from('ligas')
                       .delete()
-                      .eq('id', liga['id']);
+                      .eq('id', liga['id'])
+                      .select('id')
+                      .single();
                   if (context.mounted) {
                     Navigator.pop(context);
                   }
                   if (mounted) {
                     setState(() {});
                   }
-                } catch (_) {}
+                } catch (e) {
+                  if (context.mounted) _errorOperacion(context, e);
+                }
               },
               child: const Text('Eliminar'),
             ),
@@ -2233,15 +2154,11 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
 
                           try {
                             if (imagenBytes != null) {
-                              final path =
-                                  'liga_${liga['id']}_${DateTime.now().millisecondsSinceEpoch}.png';
-                              await Supabase.instance.client.storage
-                                  .from('escudos_ligas')
-                                  .uploadBinary(path, imagenBytes!);
-
-                              finalUrl = Supabase.instance.client.storage
-                                  .from('escudos_ligas')
-                                  .getPublicUrl(path);
+                              finalUrl = await _subirImagen(
+                                imagenBytes!,
+                                'escudos_ligas',
+                                liga['id'].toString(),
+                              );
                             }
 
                             final Map<String, dynamic> datosActualizar = {
@@ -2265,7 +2182,9 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                             await Supabase.instance.client
                                 .from('ligas')
                                 .update(datosActualizar)
-                                .eq('id', liga['id']);
+                                .eq('id', liga['id'])
+                                .select('id')
+                                .single();
 
                             if (dialogContext.mounted) {
                               Navigator.pop(dialogContext);
@@ -2273,7 +2192,10 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                             if (mounted) {
                               setState(() {});
                             }
-                          } catch (_) {
+                          } catch (e) {
+                            if (dialogContext.mounted) {
+                              _errorOperacion(dialogContext, e);
+                            }
                             setDialogState(() {
                               subiendo = false;
                             });
@@ -2324,13 +2246,14 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                   ],
                 ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Center(
                       child: _LigaBrand(subtitle: 'Panel Superadministrador'),
                     ),
                     const SizedBox(height: 24),
                     Wrap(
+                      alignment: WrapAlignment.center,
                       spacing: 16,
                       runSpacing: 8,
                       crossAxisAlignment: WrapCrossAlignment.center,
@@ -2347,14 +2270,26 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                           icon: const Icon(Icons.add),
                           label: const Text('Nueva Liga'),
                         ),
+                        OutlinedButton.icon(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const ResumenSuperadmin(),
+                            ),
+                          ),
+                          icon: const Icon(Icons.groups_outlined),
+                          label: const Text('Jugadores por liga'),
+                        ),
+                        IconButton(
+                          tooltip: 'Actualizar',
+                          onPressed: () => setState(() {}),
+                          icon: const Icon(Icons.refresh),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 10),
                     Expanded(
                       child: FutureBuilder<List<Map<String, dynamic>>>(
-                        future: Supabase.instance.client
-                            .from('ligas')
-                            .select('*'),
+                        future: _leerFilas('ligas'),
                         builder: (context, snapshot) {
                           if (snapshot.connectionState ==
                               ConnectionState.waiting) {
@@ -2430,6 +2365,20 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       OutlinedButton.icon(
+                                        onPressed: () => _verEquiposDeLiga(
+                                          liga['id'].toString(),
+                                          liga['nombre'] ?? 'Liga',
+                                        ),
+                                        icon: const Icon(
+                                          Icons.groups,
+                                          size: 16,
+                                        ),
+                                        label: const Text(
+                                          'Equipos y jugadores',
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      OutlinedButton.icon(
                                         onPressed: () =>
                                             _verDetallesAdmin(liga),
                                         icon: const Icon(
@@ -2476,50 +2425,7 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
 }
 
 // Shared visual style for the panel and every modal route.
-ThemeData _ligaTheme(BuildContext context) {
-  const primary = Color(0xFF4351BF);
-  final base = Theme.of(context);
-  return base.copyWith(
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: primary,
-      brightness: Brightness.light,
-    ).copyWith(primary: primary, surface: const Color(0xFFF8F6FB)),
-    scaffoldBackgroundColor: const Color(0xFFF2F2F5),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: const Color(0xFFF8F6FB),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(5)),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(5),
-        borderSide: const BorderSide(color: Color(0xFF898692)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(5),
-        borderSide: const BorderSide(color: primary, width: 2),
-      ),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
-        minimumSize: const Size(100, 46),
-        elevation: 0,
-        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: primary,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(foregroundColor: primary),
-    ),
-  );
-}
+ThemeData _ligaTheme(BuildContext context) => temaLigaMaster();
 
 class _LigaBrand extends StatelessWidget {
   const _LigaBrand({required this.subtitle});
@@ -2581,7 +2487,7 @@ class _LigaDialog extends StatelessWidget {
     final panel = ConstrainedBox(
       constraints: BoxConstraints(maxHeight: maxHeight),
       child: SizedBox(
-        width: wide ? 940 : 460,
+        width: wide ? 940 : 620,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

@@ -1,10 +1,13 @@
+import '../widgets/estilo_panel.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'pantalla_login.dart';
+import 'accesos_campeonato.dart';
 import 'ajustar_foto.dart';
+import '../widgets/imagen_cedula.dart';
 
 const _azul = Color(0xFF4351BF);
 const _categorias = ['Fútbol Senior', 'Femenino', 'Sub 40', 'Sub 12'];
@@ -51,6 +54,26 @@ class _Mayusculas extends TextInputFormatter {
 }
 
 String _error(Object e) {
+  if (e is StorageException) {
+    final mensaje = e.message.toLowerCase();
+    if (e.statusCode == '413' ||
+        mensaje.contains('maximum allowed size') ||
+        mensaje.contains('exceeded') ||
+        mensaje.contains('too large')) {
+      return 'La imagen supera el límite de 5 MB. Selecciona una imagen más pequeña.';
+    }
+    if (e.statusCode == '415' ||
+        mensaje.contains('mime') ||
+        mensaje.contains('content type')) {
+      return 'El servidor rechazó el formato de la imagen. Usa JPG, PNG o WebP.';
+    }
+    if (e.statusCode == '403' ||
+        mensaje.contains('row-level security') ||
+        mensaje.contains('unauthorized')) {
+      return 'El servidor rechazó el permiso para subir la imagen del equipo. Los datos del formulario se conservan.';
+    }
+    return 'No se pudo subir la imagen al servidor. Comprueba tu conexión y sesión.';
+  }
   if (e is PostgrestException) {
     if (e.code == '23505')
       return 'Este jugador ya está inscrito en una categoría incompatible de la misma liga.';
@@ -163,25 +186,8 @@ Widget _seguimiento(Map<String, dynamic> j) => Column(
 class PantallaDelegado extends StatelessWidget {
   const PantallaDelegado({super.key});
   @override
-  Widget build(BuildContext context) => Theme(
-    data: ThemeData(
-      useMaterial3: true,
-      fontFamily: 'Roboto',
-      colorScheme: ColorScheme.fromSeed(seedColor: _azul),
-      scaffoldBackgroundColor: const Color(0xFFF2F2F5),
-      dialogTheme: const DialogThemeData(backgroundColor: Color(0xFFF8F6FB)),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _azul,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      ),
-    ),
-    child: const _PanelDelegado(),
-  );
+  Widget build(BuildContext context) =>
+      Theme(data: temaLigaMaster(), child: const _PanelDelegado());
 }
 
 class _PanelDelegado extends StatefulWidget {
@@ -484,6 +490,7 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                   Expanded(
                     child: _ImagenFormulario(
                       titulo: 'Cédula (frente)',
+                      documento: true,
                       url: j['foto_cedula_url'],
                     ),
                   ),
@@ -580,7 +587,7 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
           ? const Center(child: Text('Tu cuenta no tiene un equipo asignado.'))
           : Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1040),
+                constraints: const BoxConstraints(maxWidth: 1000),
                 child: ListView(
                   padding: const EdgeInsets.all(20),
                   children: [
@@ -659,29 +666,33 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                             ],
                           ),
                           if (_equipos.length > 1)
-                            DropdownButtonFormField<int>(
-                              initialValue: (_equipo!['id'] as num).toInt(),
-                              decoration: const InputDecoration(
-                                labelText: 'Equipo',
+                            ControlCentrado(
+                              ancho: 520,
+                              child: DropdownButtonFormField<int>(
+                                initialValue: (_equipo!['id'] as num).toInt(),
+                                decoration: const InputDecoration(
+                                  labelText: 'Equipo',
+                                ),
+                                items: [
+                                  for (final e in _equipos)
+                                    DropdownMenuItem(
+                                      value: (e['id'] as num).toInt(),
+                                      child: Text(e['nombre'].toString()),
+                                    ),
+                                ],
+                                onChanged: _ocupado
+                                    ? null
+                                    : (id) {
+                                        _equipo = _equipos.firstWhere(
+                                          (e) => e['id'] == id,
+                                        );
+                                        _leer();
+                                      },
                               ),
-                              items: [
-                                for (final e in _equipos)
-                                  DropdownMenuItem(
-                                    value: (e['id'] as num).toInt(),
-                                    child: Text(e['nombre'].toString()),
-                                  ),
-                              ],
-                              onChanged: _ocupado
-                                  ? null
-                                  : (id) {
-                                      _equipo = _equipos.firstWhere(
-                                        (e) => e['id'] == id,
-                                      );
-                                      _leer();
-                                    },
                             ),
                           const SizedBox(height: 16),
                           Wrap(
+                            alignment: WrapAlignment.center,
                             spacing: 16,
                             runSpacing: 12,
                             crossAxisAlignment: WrapCrossAlignment.center,
@@ -719,32 +730,44 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                           if (_campeonatos.any(
                             (c) => c['categoria'] == _categoria,
                           )) ...[
-                            DropdownButtonFormField<String>(
-                              key: ValueKey(
-                                '${_equipo!['id']}:$_categoria:${_campeonato?['id']}',
+                            ControlCentrado(
+                              ancho: 520,
+                              child: DropdownButtonFormField<String>(
+                                key: ValueKey(
+                                  '${_equipo!['id']}:$_categoria:${_campeonato?['id']}',
+                                ),
+                                initialValue: _campeonato?['id']?.toString(),
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'Campeonato para inscripción',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: [
+                                  for (final c in _campeonatos.where(
+                                    (c) => c['categoria'] == _categoria,
+                                  ))
+                                    DropdownMenuItem(
+                                      value: c['id'].toString(),
+                                      child: Text(c['nombre'].toString()),
+                                    ),
+                                ],
+                                onChanged: _ocupado
+                                    ? null
+                                    : (v) => setState(() => _campeonatoId = v),
                               ),
-                              initialValue: _campeonato?['id']?.toString(),
-                              isExpanded: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Campeonato para inscripción',
-                                border: OutlineInputBorder(),
-                              ),
-                              items: [
-                                for (final c in _campeonatos.where(
-                                  (c) => c['categoria'] == _categoria,
-                                ))
-                                  DropdownMenuItem(
-                                    value: c['id'].toString(),
-                                    child: Text(c['nombre'].toString()),
-                                  ),
-                              ],
-                              onChanged: _ocupado
-                                  ? null
-                                  : (v) => setState(() => _campeonatoId = v),
                             ),
                             const SizedBox(height: 8),
                           ],
+                          if (_campeonato != null)
+                            AccesosCampeonato(
+                              campeonato: Map<String, dynamic>.from(
+                                _campeonato!,
+                              ),
+                              delegado: true,
+                              habilitado: !_ocupado,
+                            ),
                           Text(
+                            textAlign: TextAlign.center,
                             _inscripcionAbierta
                                 ? 'Inscripción abierta hasta ${_fecha(_campeonato?['fin'])}'
                                 : 'Inscripción cerrada o sin configurar para esta categoría. Solo puedes consultar las fichas.',
@@ -755,16 +778,20 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          TextField(
-                            decoration: const InputDecoration(
-                              prefixIcon: Icon(Icons.search),
-                              hintText: 'Buscar por nombre o cédula',
-                              border: OutlineInputBorder(),
+                          ControlCentrado(
+                            ancho: 620,
+                            child: TextField(
+                              decoration: const InputDecoration(
+                                prefixIcon: Icon(Icons.search),
+                                hintText: 'Buscar por nombre o cédula',
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (v) => setState(() => _busqueda = v),
                             ),
-                            onChanged: (v) => setState(() => _busqueda = v),
                           ),
                           const SizedBox(height: 12),
                           Wrap(
+                            alignment: WrapAlignment.center,
                             spacing: 8,
                             runSpacing: 8,
                             children: [
@@ -797,6 +824,7 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                           ),
                           const SizedBox(height: 8),
                           Text(
+                            textAlign: TextAlign.center,
                             'Jugadores en esta categoría: ${_jugadores.where((j) => j['categoria'] == _categoria).length} · Coincidencias: ${filtrados.length}',
                           ),
                           if (filtrados.isEmpty)
@@ -1063,6 +1091,7 @@ class _DatosDelegadoState extends State<_DatosDelegado> {
 }
 
 class _ImagenFormulario extends StatelessWidget {
+  final bool documento;
   final String titulo;
   final String? url;
   final Uint8List? bytes;
@@ -1074,6 +1103,7 @@ class _ImagenFormulario extends StatelessWidget {
     this.bytes,
     this.seleccionar,
     this.llenar = false,
+    this.documento = false,
   });
   @override
   Widget build(BuildContext context) => Column(
@@ -1097,12 +1127,18 @@ class _ImagenFormulario extends StatelessWidget {
                   fit: llenar ? BoxFit.cover : BoxFit.contain,
                 )
               : (url?.isNotEmpty ?? false)
-              ? Image.network(
-                  url!,
-                  fit: llenar ? BoxFit.cover : BoxFit.contain,
-                  errorBuilder: (_, __, ___) =>
-                      const Center(child: Text('No se pudo cargar la imagen')),
-                )
+              ? documento
+                    ? ImagenCedula(
+                        referencia: url!,
+                        fit: llenar ? BoxFit.cover : BoxFit.contain,
+                      )
+                    : Image.network(
+                        url!,
+                        fit: llenar ? BoxFit.cover : BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Center(
+                          child: Text('No se pudo cargar la imagen'),
+                        ),
+                      )
               : const Center(
                   child: Icon(
                     Icons.add_photo_alternate_outlined,
@@ -1304,7 +1340,23 @@ class _FormularioJugadorState extends State<_FormularioJugador> {
         );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
-      if (mounted) setState(() => _fallo = _error(e));
+      if (mounted) {
+        final mensaje = _error(e);
+        setState(() => _fallo = mensaje);
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('No se pudo completar el guardado'),
+            content: Text(mensaje),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Volver al formulario'),
+              ),
+            ],
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
@@ -1316,6 +1368,7 @@ class _FormularioJugadorState extends State<_FormularioJugador> {
     child: AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       title: Text(
+        textAlign: TextAlign.center,
         widget.jugador == null ? 'Ingresar jugador' : 'Editar jugador',
       ),
       content: SizedBox(
@@ -1345,6 +1398,7 @@ class _FormularioJugadorState extends State<_FormularioJugador> {
                     Expanded(
                       child: _ImagenFormulario(
                         titulo: 'Cédula (parte delantera)',
+                        documento: true,
                         llenar: true,
                         url: widget.jugador?['foto_cedula_url'],
                         bytes: _cedula,

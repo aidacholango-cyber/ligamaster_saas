@@ -43,3 +43,20 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# LigaMaster: secretos locales (las plantillas pueden versionarse)
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+**/key.properties
+**/service-account*.json
+**/service_account*.json
+**/*firebase-adminsdk*.json
+supabase/.temp/

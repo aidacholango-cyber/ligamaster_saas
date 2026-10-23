@@ -1,19 +1,35 @@
+import 'dart:convert';
+import '../widgets/refresco_deportivo.dart';
 import 'package:flutter/material.dart';
+import 'lista_goleadores.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PantallaGoleadores extends StatefulWidget {
   final Map<String, dynamic> campeonato;
 
-  const PantallaGoleadores({
-    super.key,
-    required this.campeonato,
-  });
+  const PantallaGoleadores({super.key, required this.campeonato});
 
   @override
   State<PantallaGoleadores> createState() => _PantallaGoleadoresState();
 }
 
-class _PantallaGoleadoresState extends State<PantallaGoleadores> {
+class _PantallaGoleadoresState extends State<PantallaGoleadores>
+    with RefrescoDeportivo<PantallaGoleadores> {
+  @override
+  Future<void> refrescarDeporte() async {
+    List<Map<String, dynamic>>? anteriores;
+    try {
+      anteriores = await _datos;
+    } catch (_) {
+      /* Reintentar una lectura inicial fallida. */
+    }
+    final nuevos = await _leer();
+    if (mounted &&
+        (anteriores == null || jsonEncode(anteriores) != jsonEncode(nuevos))) {
+      setState(() => _datos = Future.value(nuevos));
+    }
+  }
+
   late Future<List<Map<String, dynamic>>> _datos;
 
   @override
@@ -26,15 +42,14 @@ class _PantallaGoleadoresState extends State<PantallaGoleadores> {
     final filas = <Map<String, dynamic>>[];
 
     for (var desde = 0; ; desde += 500) {
-      final pagina = await Supabase.instance.client
-          .from('lm_goleadores')
-          .select()
-          .eq('campeonato_id', widget.campeonato['id'].toString())
-          .order('posicion')
-          .order('apellidos')
-          .order('nombres')
-          .order('inscripcion_jugador_id')
-          .range(desde, desde + 499);
+      final respuesta = await Supabase.instance.client.rpc(
+        'lm_goleadores_con_foto',
+        params: {
+          'p_campeonato_id': widget.campeonato['id'].toString(),
+          'p_desde': desde,
+        },
+      );
+      final pagina = List<Map<String, dynamic>>.from(respuesta as List);
 
       filas.addAll(List<Map<String, dynamic>>.from(pagina));
 
@@ -50,49 +65,6 @@ class _PantallaGoleadoresState extends State<PantallaGoleadores> {
     setState(() {
       _datos = carga;
     });
-  }
-
-  String _nombre(Map<String, dynamic> jugador) {
-    return [
-      jugador['nombres']?.toString() ?? '',
-      jugador['apellidos']?.toString() ?? '',
-    ].where((parte) => parte.trim().isNotEmpty).join(' ');
-  }
-
-  Widget _tabla(List<Map<String, dynamic>> jugadores) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columnSpacing: 24,
-        columns: const [
-          DataColumn(label: Text('Posición'), numeric: true),
-          DataColumn(label: Text('Jugador')),
-          DataColumn(label: Text('Equipo')),
-          DataColumn(label: Text('PJ'), numeric: true),
-          DataColumn(label: Text('Goles'), numeric: true),
-        ],
-        rows: [
-          for (final jugador in jugadores)
-            DataRow(
-              cells: [
-                DataCell(Text('${jugador['posicion']}')),
-                DataCell(Text(_nombre(jugador))),
-                DataCell(Text('${jugador['equipo']}')),
-                DataCell(Text('${jugador['partidos_jugados']}')),
-                DataCell(
-                  Text(
-                    '${jugador['goles']}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF4351BF),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -173,19 +145,7 @@ class _PantallaGoleadoresState extends State<PantallaGoleadores> {
                             'resultados confirmados en esta categoría.',
                           )
                         else
-                          _tabla(jugadores),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Solo se cuentan goles de partidos confirmados. '
-                          'Los autogoles y los penales de la tanda '
-                          'no suman a los goleadores.',
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'PJ: partidos en los que participó el jugador. '
-                          'Los jugadores con igual cantidad de goles '
-                          'comparten posición.',
-                        ),
+                          ListaGoleadores(jugadores: jugadores),
                       ],
                     ),
                   ),

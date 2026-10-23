@@ -1,3 +1,4 @@
+import '../widgets/refresco_deportivo.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'pantalla_planilla_resultado.dart';
@@ -43,7 +44,13 @@ class PantallaFixture extends StatefulWidget {
   State<PantallaFixture> createState() => _PantallaFixtureState();
 }
 
-class _PantallaFixtureState extends State<PantallaFixture> {
+class _PantallaFixtureState extends State<PantallaFixture>
+    with RefrescoDeportivo<PantallaFixture> {
+  @override
+  Future<void> refrescarDeporte() async {
+    if (!_ocupado && !_cargando) await _leer(silencioso: true);
+  }
+
   final _db = Supabase.instance.client;
   List<Map<String, dynamic>> _fases = [],
       _grupos = [],
@@ -51,6 +58,7 @@ class _PantallaFixtureState extends State<PantallaFixture> {
       _equipos = [],
       _inscritos = [],
       _partidos = [];
+  final Map<String, String> _marcadores = {};
   Set<String> _confirmados = {};
   String? _faseId, _grupoId, _fallo;
   bool _cargando = true, _ocupado = false, _cerrado = false;
@@ -114,10 +122,10 @@ class _PantallaFixtureState extends State<PantallaFixture> {
     }
   }
 
-  Future<void> _leer() async {
+  Future<void> _leer({bool silencioso = false}) async {
     final lectura = ++_lectura;
     setState(() {
-      _cargando = true;
+      if (!silencioso) _cargando = true;
       _fallo = null;
     });
     try {
@@ -159,7 +167,9 @@ class _PantallaFixtureState extends State<PantallaFixture> {
           _filas(
             await _db
                 .from('campeonato_resultados')
-                .select('partido_id')
+                .select(
+                  'partido_id,goles_local,goles_visitante,prorroga_local,prorroga_visitante,penales_local,penales_visitante',
+                )
                 .inFilter(
                   'partido_id',
                   partidos.skip(inicio).take(100).map((p) => p['id']).toList(),
@@ -176,6 +186,17 @@ class _PantallaFixtureState extends State<PantallaFixture> {
         _asignaciones = _filas(datos[3]);
         _partidos = partidos;
         _grupos = grupos;
+        _marcadores
+          ..clear()
+          ..addEntries(
+            confirmados.map(
+              (r) => MapEntry(
+                r['partido_id'].toString(),
+                '${(r['goles_local'] as num) + ((r['prorroga_local'] as num?) ?? 0)} - ${(r['goles_visitante'] as num) + ((r['prorroga_visitante'] as num?) ?? 0)}'
+                '${r['penales_local'] == null ? '' : ' · Penales ${r['penales_local']} - ${r['penales_visitante']}'}',
+              ),
+            ),
+          );
         _confirmados = confirmados
             .map((r) => r['partido_id'].toString())
             .toSet();
@@ -529,7 +550,7 @@ class _PantallaFixtureState extends State<PantallaFixture> {
                                     ),
                                     Text(
                                       _confirmados.contains(p['id'])
-                                          ? 'Resultado confirmado'
+                                          ? 'Resultado: ${_marcadores[p['id'].toString()] ?? ''} · Confirmado'
                                           : p['estado'].toString(),
                                     ),
                                     TextButton.icon(

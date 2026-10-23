@@ -1,3 +1,5 @@
+import 'dart:convert';
+import '../widgets/refresco_deportivo.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -9,7 +11,23 @@ class PantallaPosiciones extends StatefulWidget {
   State<PantallaPosiciones> createState() => _PantallaPosicionesState();
 }
 
-class _PantallaPosicionesState extends State<PantallaPosiciones> {
+class _PantallaPosicionesState extends State<PantallaPosiciones>
+    with RefrescoDeportivo<PantallaPosiciones> {
+  @override
+  Future<void> refrescarDeporte() async {
+    List<Map<String, dynamic>>? anteriores;
+    try {
+      anteriores = await _datos;
+    } catch (_) {
+      /* Reintentar una lectura inicial fallida. */
+    }
+    final nuevos = await _leer();
+    if (mounted &&
+        (anteriores == null || jsonEncode(anteriores) != jsonEncode(nuevos))) {
+      setState(() => _datos = Future.value(nuevos));
+    }
+  }
+
   late Future<List<Map<String, dynamic>>> _datos;
   String? _faseId;
 
@@ -77,16 +95,20 @@ class _PantallaPosicionesState extends State<PantallaPosiciones> {
         ],
         rows: [
           for (final equipo in equipos)
-            DataRow(cells: [
-              DataCell(Text(equipo['equipo'].toString())),
-              for (final campo in campos.values)
-                DataCell(Text(
-                  _numero(equipo, campo).toString(),
-                  style: campo == 'puntos'
-                      ? const TextStyle(fontWeight: FontWeight.bold)
-                      : null,
-                )),
-            ]),
+            DataRow(
+              cells: [
+                DataCell(Text(equipo['equipo'].toString())),
+                for (final campo in campos.values)
+                  DataCell(
+                    Text(
+                      _numero(equipo, campo).toString(),
+                      style: campo == 'puntos'
+                          ? const TextStyle(fontWeight: FontWeight.bold)
+                          : null,
+                    ),
+                  ),
+              ],
+            ),
         ],
       ),
     );
@@ -123,7 +145,10 @@ class _PantallaPosicionesState extends State<PantallaPosiciones> {
                 children: [
                   Text(mensaje, textAlign: TextAlign.center),
                   const SizedBox(height: 16),
-                  FilledButton(onPressed: _recargar, child: const Text('Reintentar')),
+                  FilledButton(
+                    onPressed: _recargar,
+                    child: const Text('Reintentar'),
+                  ),
                 ],
               ),
             ),
@@ -139,7 +164,9 @@ class _PantallaPosicionesState extends State<PantallaPosiciones> {
             : (fases.isEmpty ? null : fases.keys.first);
         final grupos = <String, List<Map<String, dynamic>>>{};
         for (final fila in filas.where((f) => f['fase_id'] == fase)) {
-          grupos.putIfAbsent(fila['grupo_id']?.toString() ?? '', () => []).add(fila);
+          grupos
+              .putIfAbsent(fila['grupo_id']?.toString() ?? '', () => [])
+              .add(fila);
         }
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -152,16 +179,24 @@ class _PantallaPosicionesState extends State<PantallaPosiciones> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('LigaMaster SaaS', style: TextStyle(
-                        fontSize: 24, fontWeight: FontWeight.bold,
-                        color: Color(0xFF4351BF),
-                      )),
+                      const Text(
+                        'LigaMaster SaaS',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF4351BF),
+                        ),
+                      ),
                       const SizedBox(height: 16),
-                      Text('${widget.campeonato['nombre']} · ${widget.campeonato['categoria']}',
-                        style: Theme.of(context).textTheme.titleLarge),
+                      Text(
+                        '${widget.campeonato['nombre']} · ${widget.campeonato['categoria']}',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
                       const SizedBox(height: 20),
                       if (fase == null)
-                        const Text('Todavía no hay equipos inscritos en fases regulares para mostrar posiciones.')
+                        const Text(
+                          'Todavía no hay equipos inscritos en fases regulares para mostrar posiciones.',
+                        )
                       else ...[
                         DropdownButtonFormField<String>(
                           key: ValueKey(fase),
@@ -169,21 +204,34 @@ class _PantallaPosicionesState extends State<PantallaPosiciones> {
                           decoration: const InputDecoration(labelText: 'Fase'),
                           items: [
                             for (final entrada in fases.entries)
-                              DropdownMenuItem(value: entrada.key, child: Text(entrada.value)),
+                              DropdownMenuItem(
+                                value: entrada.key,
+                                child: Text(entrada.value),
+                              ),
                           ],
-                          onChanged: (valor) { setState(() { _faseId = valor; }); },
+                          onChanged: (valor) {
+                            setState(() {
+                              _faseId = valor;
+                            });
+                          },
                         ),
                         const SizedBox(height: 20),
                         for (final grupo in grupos.entries) ...[
                           if (grupo.key.isNotEmpty)
-                            Text(grupo.value.first['grupo'].toString(),
-                              style: Theme.of(context).textTheme.titleMedium),
+                            Text(
+                              grupo.value.first['grupo'].toString(),
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
                           _tabla(grupo.value),
                           const SizedBox(height: 20),
                         ],
-                        const Text('Solo resultados confirmados. Los equipos con igual puntaje permanecen empatados.'),
+                        const Text(
+                          'Solo resultados confirmados. Los equipos con igual puntaje permanecen empatados.',
+                        ),
                         const SizedBox(height: 8),
-                        const Text('PJ: jugados · PG: ganados · PE: empatados · PP: perdidos\nGF: goles a favor · GC: goles en contra · DG: diferencia · Pts: puntos'),
+                        const Text(
+                          'PJ: jugados · PG: ganados · PE: empatados · PP: perdidos\nGF: goles a favor · GC: goles en contra · DG: diferencia · Pts: puntos',
+                        ),
                       ],
                     ],
                   ),

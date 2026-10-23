@@ -12,9 +12,13 @@ String _errorActa(Object e) {
 class _FilaJugador {
   final Map<String, dynamic> datos;
   bool participo;
+  int amarillas;
+  bool rojaDirecta;
   final TextEditingController goles, autogoles;
   _FilaJugador(this.datos, Map<String, dynamic>? pl)
     : participo = pl?['participo'] == true,
+      amarillas = (pl?['amarillas'] as num?)?.toInt() ?? 0,
+      rojaDirecta = pl?['roja_directa'] == true,
       goles = TextEditingController(text: (pl?['goles'] ?? 0).toString()),
       autogoles = TextEditingController(
         text: (pl?['autogoles'] ?? 0).toString(),
@@ -246,7 +250,7 @@ class _PantallaPlanillaResultadoState extends State<PantallaPlanillaResultado> {
     });
     try {
       await _db.rpc(
-        'lm_guardar_acta',
+        'lm_guardar_acta_tarjetas',
         params: {
           'p_partido_id': widget.partidoId,
           'p_version': _datos!['version'],
@@ -258,6 +262,8 @@ class _PantallaPlanillaResultadoState extends State<PantallaPlanillaResultado> {
                 'participo': j.participo,
                 'goles': j.participo ? _numero(j.goles) : 0,
                 'autogoles': j.participo ? _numero(j.autogoles) : 0,
+                'amarillas': j.amarillas,
+                'roja_directa': j.rojaDirecta,
               },
           ],
           'p_resultado': {
@@ -396,6 +402,48 @@ class _PantallaPlanillaResultadoState extends State<PantallaPlanillaResultado> {
                         j.autogoles,
                         'Autogoles',
                         enabled: _editable && j.participo && j.activo,
+                      ),
+                      SizedBox(
+                        width: 145,
+                        child: DropdownButtonFormField<int>(
+                          key: ValueKey('${j.datos['inscripcion_id']}:${j.amarillas}'),
+                          initialValue: j.amarillas,
+                          decoration: const InputDecoration(
+                            labelText: 'Amarillas',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 0, child: Text('0')),
+                            DropdownMenuItem(value: 1, child: Text('1')),
+                            DropdownMenuItem(value: 2, child: Text('2')),
+                          ],
+                          onChanged: _editable
+                              ? (valor) {
+                                  if (valor == null) return;
+                                  setState(() {
+                                    j.amarillas = valor;
+                                    _sucio = true;
+                                  });
+                                }
+                              : null,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 195,
+                        child: CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Roja directa'),
+                          controlAffinity: ListTileControlAffinity.leading,
+                          value: j.rojaDirecta,
+                          onChanged: _editable
+                              ? (valor) {
+                                  setState(() {
+                                    j.rojaDirecta = valor == true;
+                                    _sucio = true;
+                                  });
+                                }
+                              : null,
+                        ),
                       ),
                     ],
                   ),
