@@ -654,7 +654,8 @@ class __ContenidoAdminLigaState extends State<_ContenidoAdminLiga> {
       ),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
-          : Center(
+          : SingleChildScrollView(
+              child: Center(
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 1000),
                 margin: const EdgeInsets.all(20),
@@ -788,7 +789,7 @@ class __ContenidoAdminLigaState extends State<_ContenidoAdminLiga> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      Expanded(
+                      SizedBox(
                         child: FutureBuilder<List<Map<String, dynamic>>>(
                           future: _obtenerEquiposBackend(),
                           builder: (context, snapshot) {
@@ -821,8 +822,10 @@ class __ContenidoAdminLigaState extends State<_ContenidoAdminLiga> {
                                     'Abre un equipo para revisar y calificar a sus jugadores.',
                                   ),
                                 ),
-                                Expanded(
+                                SizedBox(
                                   child: ListView.builder(
+                                    shrinkWrap: true,
+                                    physics: const NeverScrollableScrollPhysics(),
                                     itemCount: equipos.length,
                                     itemBuilder: (context, index) {
                                       final equipo = equipos[index];
@@ -830,56 +833,8 @@ class __ContenidoAdminLigaState extends State<_ContenidoAdminLiga> {
                                           equipo['escudo_url'] ??
                                           equipo['logo_url'];
 
-                                      return Card(
-                                        child: ListTile(
-                                          leading: GestureDetector(
-                                            onTap: () =>
-                                                _verJugadoresDelEquipo(equipo),
-                                            child: ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                              child:
-                                                  escudoUrl != null &&
-                                                      escudoUrl.isNotEmpty
-                                                  ? Image.network(
-                                                      escudoUrl,
-                                                      width: 36,
-                                                      height: 36,
-                                                      fit: BoxFit.cover,
-                                                      errorBuilder:
-                                                          (
-                                                            context,
-                                                            error,
-                                                            stackTrace,
-                                                          ) => const Icon(
-                                                            Icons.shield,
-                                                            color:
-                                                                Colors.indigo,
-                                                            size: 32,
-                                                          ),
-                                                    )
-                                                  : const Icon(
-                                                      Icons.shield,
-                                                      color: Colors.indigo,
-                                                      size: 32,
-                                                    ),
-                                            ),
-                                          ),
-                                          title: InkWell(
-                                            onTap: () =>
-                                                _verJugadoresDelEquipo(equipo),
-                                            child: Text(
-                                              equipo['nombre'] ?? 'Sin nombre',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.indigo,
-                                              ),
-                                            ),
-                                          ),
-                                          subtitle: Text(
-                                            'Categorías: Fútbol Senior · Femenino · Sub 40 · Sub 12',
-                                          ),
-                                          trailing: Row(
+                                      final compacto = MediaQuery.sizeOf(context).width < 600;
+                                      final acciones = Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               IconButton(
@@ -977,8 +932,62 @@ class __ContenidoAdminLigaState extends State<_ContenidoAdminLiga> {
                                                 },
                                               ),
                                             ],
+                                          );
+                                      return Card(
+                                        child: Column(children: [ListTile(
+                                          leading: GestureDetector(
+                                            onTap: () =>
+                                                _verJugadoresDelEquipo(equipo),
+                                            child: ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                              child:
+                                                  escudoUrl != null &&
+                                                      escudoUrl.isNotEmpty
+                                                  ? Image.network(
+                                                      escudoUrl,
+                                                      width: 36,
+                                                      height: 36,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder:
+                                                          (
+                                                            context,
+                                                            error,
+                                                            stackTrace,
+                                                          ) => const Icon(
+                                                            Icons.shield,
+                                                            color:
+                                                                Colors.indigo,
+                                                            size: 32,
+                                                          ),
+                                                    )
+                                                  : const Icon(
+                                                      Icons.shield,
+                                                      color: Colors.indigo,
+                                                      size: 32,
+                                                    ),
+                                            ),
                                           ),
+                                          title: InkWell(
+                                            onTap: () =>
+                                                _verJugadoresDelEquipo(equipo),
+                                            child: Text(
+                                              equipo['nombre'] ?? 'Sin nombre',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.indigo,
+                                              ),
+                                            ),
+                                          ),
+                                          subtitle: Text(
+                                            'Categorías: Fútbol Senior · Femenino · Sub 40 · Sub 12',
+                                          ),
+                                          trailing: compacto ? null : acciones,
                                         ),
+                                        if (compacto) Padding(
+                                          padding: const EdgeInsets.only(bottom: 8),
+                                          child: acciones),
+                                        ]),
                                       );
                                     },
                                   ),
@@ -992,6 +1001,7 @@ class __ContenidoAdminLigaState extends State<_ContenidoAdminLiga> {
                   ),
                 ),
               ),
+            ),
             ),
     );
   }
