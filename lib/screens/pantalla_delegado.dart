@@ -1,3 +1,5 @@
+import '../models/edad_sub12.dart';
+import '../models/edad_sub40.dart';
 import '../widgets/estilo_panel.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -133,6 +135,13 @@ Widget _foto(String? url, {double lado = 60}) => ClipOval(
           ),
   ),
 );
+Color _colorEstadoDelegado(String estado) => switch (estado) {
+  'Inscritos' => const Color(0xFF166534),
+  'Revisados' => const Color(0xFF925900),
+  'Calificados' => const Color(0xFF1D4DE2),
+  _ => const Color(0xFFBE1176),
+};
+
 Widget _seguimiento(Map<String, dynamic> j) => Column(
   crossAxisAlignment: CrossAxisAlignment.start,
   children: [
@@ -141,10 +150,16 @@ Widget _seguimiento(Map<String, dynamic> j) => Column(
       runSpacing: 4,
       children: [
         const Chip(
+          backgroundColor: Color(0xFFDCFCE7),
+          side: BorderSide(color: Color(0xFF86CBA2)),
+          labelStyle: TextStyle(color: Color(0xFF166534), fontWeight: FontWeight.w600),
           avatar: Icon(Icons.check_circle, color: Colors.green, size: 18),
           label: Text('Inscrito'),
         ),
         Chip(
+          backgroundColor: const Color(0xFFFFF3D6),
+          side: const BorderSide(color: Color(0xFFE5C68C)),
+          labelStyle: const TextStyle(color: Color(0xFF925900), fontWeight: FontWeight.w600),
           avatar: Icon(
             Icons.check_circle,
             size: 18,
@@ -155,6 +170,9 @@ Widget _seguimiento(Map<String, dynamic> j) => Column(
           ),
         ),
         Chip(
+          backgroundColor: const Color(0xFFE7EDFF),
+          side: const BorderSide(color: Color(0xFFAABEF9)),
+          labelStyle: const TextStyle(color: Color(0xFF1D4DE2), fontWeight: FontWeight.w600),
           avatar: Icon(
             Icons.check_circle,
             size: 18,
@@ -800,6 +818,12 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                                 'Calificados',
                               ])
                                 ChoiceChip(
+                                  backgroundColor: _colorEstadoDelegado(estado).withValues(alpha: 0.08),
+                                  selectedColor: _colorEstadoDelegado(estado),
+                                  checkmarkColor: Colors.white,
+                                  labelStyle: TextStyle(
+                                    color: _filtroEstado == estado ? Colors.white : _colorEstadoDelegado(estado),
+                                    fontWeight: FontWeight.w600),
                                   label: Text(
                                     '$estado: ${estado == 'Todos' ? deCategoria.length : deCategoria.where((j) => _estadoLista(j) == estado).length}',
                                   ),
@@ -809,7 +833,7 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                                   avatar: Icon(
                                     Icons.circle,
                                     size: 12,
-                                    color: estado == 'Calificados'
+                                    color: _filtroEstado == estado ? Colors.white : estado == 'Calificados'
                                         ? _azul
                                         : estado == 'Revisados'
                                         ? Colors.orange
@@ -834,6 +858,11 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                             ),
                           for (final j in filtrados)
                             Card(
+                              elevation: 0,
+                              color: const Color(0xFFF0FDF4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                side: const BorderSide(color: Color(0xFFB6DCC7))),
                               child: Padding(
                                 padding: const EdgeInsets.all(12),
                                 child: Column(
@@ -855,6 +884,7 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                                                 _nombre(j),
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.bold,
+                                                  color: Color(0xFF166534),
                                                 ),
                                               ),
                                               Text(
@@ -868,8 +898,12 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                                     _seguimiento(j),
                                     Wrap(
                                       spacing: 8,
+                                      runSpacing: 8,
                                       children: [
                                         TextButton(
+                                          style: TextButton.styleFrom(
+                                            backgroundColor: const Color(0xFFFCE7F3),
+                                            foregroundColor: const Color(0xFFBE1176)),
                                           onPressed: _ocupado
                                               ? null
                                               : () => _ficha(j),
@@ -878,7 +912,7 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                                             children: [
                                               Icon(
                                                 Icons.visibility_outlined,
-                                                color: _azul,
+                                                color: Color(0xFFBE1176),
                                               ),
                                               SizedBox(height: 4),
                                               Text('Ver ficha'),
@@ -886,6 +920,9 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                                           ),
                                         ),
                                         TextButton(
+                                          style: TextButton.styleFrom(
+                                            backgroundColor: const Color(0xFFFFF3D6),
+                                            foregroundColor: const Color(0xFF925900)),
                                           onPressed:
                                               _ocupado || !_inscripcionAbierta
                                               ? null
@@ -903,6 +940,9 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                                           ),
                                         ),
                                         TextButton(
+                                          style: TextButton.styleFrom(
+                                            backgroundColor: const Color(0xFFFEE2E2),
+                                            foregroundColor: const Color(0xFFB82018)),
                                           onPressed:
                                               _ocupado || !_inscripcionAbierta
                                               ? null
@@ -1459,6 +1499,9 @@ class _FormularioJugadorState extends State<_FormularioJugador> {
                         else
                           TextFormField(
                             controller: _ctrl[c.key],
+                            autovalidateMode: c.key == 'fecha_nacimiento'
+                                ? AutovalidateMode.onUserInteraction
+                                : AutovalidateMode.disabled,
                             textCapitalization:
                                 ['nombres', 'apellidos'].contains(c.key)
                                 ? TextCapitalization.characters
@@ -1498,12 +1541,18 @@ class _FormularioJugadorState extends State<_FormularioJugador> {
                                     n.isAfter(DateTime.now()) ||
                                     n.year < 1900)
                                   return 'Escribe una fecha de nacimiento válida.';
+                                if (_categoria == 'Sub 12') return errorEdadSub12(n);
+                                if (_categoria == 'Sub 40') return errorEdadSub40(n);
                               }
                               return null;
                             },
                           ),
                         if (c.key == 'fecha_nacimiento')
-                          Text('Edad: ${_edad(_ctrl[c.key]!.text)}'),
+                          Text('Edad: ${['Sub 12', 'Sub 40'].contains(_categoria) && _nacimiento(_ctrl[c.key]!.text) != null
+                            ? '${_categoria == 'Sub 40'
+                              ? edadSub40(_nacimiento(_ctrl[c.key]!.text)!)
+                              : edadSub12(_nacimiento(_ctrl[c.key]!.text)!)} años'
+                            : _edad(_ctrl[c.key]!.text)}'),
                       ],
                     ),
                   ),

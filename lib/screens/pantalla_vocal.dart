@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../models/canchas.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -107,9 +108,9 @@ class _PantallaVocalState extends State<PantallaVocal> {
 
   @override
   Widget build(BuildContext context) {
-    final canchas = {'CANCHA 1', 'CANCHA 2', ..._partidos.map((p) => p['cancha'].toString().trim().toUpperCase())}.toList()..sort();
+    const canchas = canchasDisponibles;
     final disponibles = _partidos
-        .where((p) => p['cancha'].toString().trim().toUpperCase() == _cancha)
+        .where((p) => canchaValida(p['cancha']) == _cancha)
         .toList();
     return Theme(
       data: temaLigaMaster(),

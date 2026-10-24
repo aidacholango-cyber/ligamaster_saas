@@ -1,3 +1,4 @@
+import '../models/canchas.dart';
 import '../widgets/refresco_deportivo.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -910,8 +911,8 @@ class _PartidoDialog extends StatefulWidget {
 }
 
 class _PartidoDialogState extends State<_PartidoDialog> {
-  final _jornada = TextEditingController(text: '1'),
-      _cancha = TextEditingController();
+  final _jornada = TextEditingController(text: '1');
+  String? _cancha;
   int? _local, _visitante;
   DateTime? _fechaHora;
   String _estado = 'programado';
@@ -925,7 +926,7 @@ class _PartidoDialogState extends State<_PartidoDialog> {
       _local = (p['equipo_local_id'] as num).toInt();
       _visitante = (p['equipo_visitante_id'] as num).toInt();
       _jornada.text = p['jornada'].toString();
-      _cancha.text = p['cancha']?.toString() ?? '';
+      _cancha = canchaValida(p['cancha']);
       _fechaHora = DateTime.tryParse(
         p['fecha_hora']?.toString() ?? '',
       )?.toLocal();
@@ -936,7 +937,6 @@ class _PartidoDialogState extends State<_PartidoDialog> {
   @override
   void dispose() {
     _jornada.dispose();
-    _cancha.dispose();
     super.dispose();
   }
 
@@ -960,6 +960,10 @@ class _PartidoDialogState extends State<_PartidoDialog> {
   }
 
   Future<void> _guardar() async {
+    if (_cancha == null) {
+      setState(() => _fallo = 'Selecciona una cancha.');
+      return;
+    }
     final jornada = int.tryParse(_jornada.text.trim());
     if (_local == null ||
         _visitante == null ||
@@ -983,7 +987,7 @@ class _PartidoDialogState extends State<_PartidoDialog> {
           'p_visitante': _visitante,
           'p_jornada': jornada,
           'p_fecha': _fechaHora?.toUtc().toIso8601String(),
-          'p_cancha': _cancha.text.trim(),
+          'p_cancha': _cancha,
           'p_estado': _estado,
           'p_partido': widget.partido?['id'],
         },
@@ -1052,11 +1056,13 @@ class _PartidoDialogState extends State<_PartidoDialog> {
       const Text(
         'La hora se muestra según la zona horaria de este dispositivo.',
       ),
-      TextField(
-        controller: _cancha,
-        enabled: !_guardando,
-        maxLength: 150,
-        decoration: const InputDecoration(labelText: 'Cancha (opcional)'),
+      DropdownButtonFormField<String>(
+        initialValue: _cancha,
+        decoration: const InputDecoration(labelText: 'Cancha'),
+        hint: const Text('Selecciona una cancha'),
+        items: [for (final cancha in canchasDisponibles)
+          DropdownMenuItem(value: cancha, child: Text(cancha))],
+        onChanged: _guardando ? null : (valor) => setState(() => _cancha = valor),
       ),
       DropdownButtonFormField<String>(
         initialValue: _estado,

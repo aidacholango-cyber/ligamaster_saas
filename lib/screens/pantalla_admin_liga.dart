@@ -1013,9 +1013,16 @@ class PantallaRevisionJugadoresAdmin extends StatefulWidget {
     super.key,
     required this.equipoId,
     required this.nombreEquipo,
+    this.campeonatoCalificaciones,
+    this.campeonatosCalificaciones,
+    this.categoriaInicial,
   });
   final String equipoId;
   final String nombreEquipo;
+  /// Solo la comisión usa las consultas limitadas a una asignación explícita.
+  final String? campeonatoCalificaciones;
+  final List<String>? campeonatosCalificaciones;
+  final String? categoriaInicial;
 
   @override
   State<PantallaRevisionJugadoresAdmin> createState() => _RevisionState();
@@ -1029,11 +1036,26 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
   @override
   void initState() {
     super.initState();
+    _categoria = widget.categoriaInicial;
     _carga = _leer();
   }
 
   Future<List<Map<String, dynamic>>> _leer() async {
     final cliente = Supabase.instance.client;
+    if (widget.campeonatoCalificaciones != null) {
+      final ids = (widget.campeonatosCalificaciones ??
+        [widget.campeonatoCalificaciones!]).toSet();
+      final listas = await Future.wait(ids.map((id) async {
+        final jugadores = List<Map<String, dynamic>>.from(await cliente.rpc(
+          'lm_comision_jugadores', params: {
+            'p_campeonato_id': id,
+            'p_equipo_id': int.parse(widget.equipoId),
+          }));
+        return [for (final jugador in jugadores)
+          {...jugador, '_campeonato_comision': id}];
+      }));
+      return listas.expand((lista) => lista).toList();
+    }
     final usuario = cliente.auth.currentUser;
     if (usuario == null) throw StateError('La sesión ha terminado.');
     final perfil = await cliente
@@ -1175,8 +1197,11 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
                           });
                           try {
                             await Supabase.instance.client.rpc(
-                              'lm_revisar_jugador',
+                              widget.campeonatoCalificaciones == null
+                                  ? 'lm_revisar_jugador' : 'lm_comision_revisar_jugador',
                               params: {
+                                if (widget.campeonatoCalificaciones != null)
+                                  'p_campeonato_id': jugador['_campeonato_comision'] ?? widget.campeonatoCalificaciones,
                                 'p_jugador_id': id,
                                 'p_observaciones': texto.text.trim(),
                               },
@@ -1222,7 +1247,9 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
           title: const Text('Calificar jugador'),
           content: Text(
             '¿Confirmas la calificación de ${_nombre(jugador)}?\n\n'
-            'Se guardarán tu nombre y la fecha del servidor.\n\n'
+            '${widget.campeonatoCalificaciones == null
+              ? 'Se guardarán tu nombre y la fecha del servidor.'
+              : 'Se conservará el nombre del administrador de la liga y quedará registrada la acción de la comisión.'}\n\n'
             'Revisión: ${jugador['observaciones'] ?? ''}',
           ),
           actions: [
@@ -1239,8 +1266,11 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
       );
       if (confirmar != true || !mounted) return;
       await Supabase.instance.client.rpc(
-        'lm_calificar_jugador',
-        params: {'p_jugador_id': id},
+        widget.campeonatoCalificaciones == null
+            ? 'lm_calificar_jugador' : 'lm_comision_calificar_jugador',
+        params: {'p_jugador_id': id,
+          if (widget.campeonatoCalificaciones != null)
+            'p_campeonato_id': jugador['_campeonato_comision'] ?? widget.campeonatoCalificaciones},
       );
       _recargar();
     } catch (e) {
@@ -1384,7 +1414,8 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
     child: Scaffold(
       backgroundColor: const Color(0xFFF2F2F5),
       appBar: AppBar(
-        title: Text(widget.nombreEquipo),
+        title: Text(widget.campeonatoCalificaciones == null ? widget.nombreEquipo
+          : '${widget.nombreEquipo.split(' · ').first} · ${_categoria ?? 'Todas las categorías'}'),
         actions: [
           IconButton(
             tooltip: 'Actualizar',
@@ -1511,10 +1542,21 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
                                   j['calificado_por_id'] != null;
                               final sinFirma =
                                   j['estado'] == 'Calificado' && !calificado;
+                              final categoriaColor = switch (j['categoria']?.toString()) {
+                                'Femenino' => const Color(0xFFBE1176),
+                                'Sub 12' => const Color(0xFF925900),
+                                'Sub 40' => const Color(0xFF1D4DE2),
+                                _ => const Color(0xFF166534),
+                              };
                               final ocupado = _ocupados.contains(
                                 j['id'].toString(),
                               );
                               return Card(
+                                elevation: 0,
+                                color: categoriaColor.withValues(alpha: 0.05),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                  side: BorderSide(color: categoriaColor.withValues(alpha: 0.3))),
                                 child: Padding(
                                   padding: const EdgeInsets.all(14),
                                   child: Column(
@@ -1546,6 +1588,7 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: 16,
+                                                    color: Color(0xFF166534),
                                                   ),
                                                 ),
                                                 Text(
@@ -1564,6 +1607,10 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
                                             WrapCrossAlignment.center,
                                         children: [
                                           const Chip(
+                                            backgroundColor: Color(0xFFDCFCE7),
+                                            side: BorderSide(color: Color(0xFF86CBA2)),
+                                            labelStyle: TextStyle(color: Color(0xFF166534),
+                                              fontWeight: FontWeight.w600),
                                             label: Text('Inscrito'),
                                             avatar: Icon(
                                               Icons.check_circle,
@@ -1572,6 +1619,10 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
                                             ),
                                           ),
                                           Chip(
+                                            backgroundColor: const Color(0xFFFFF3D6),
+                                            side: const BorderSide(color: Color(0xFFE5C68C)),
+                                            labelStyle: const TextStyle(color: Color(0xFF925900),
+                                              fontWeight: FontWeight.w600),
                                             label: Text(
                                               revisado
                                                   ? 'Revisado'
@@ -1586,6 +1637,10 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
                                             ),
                                           ),
                                           Chip(
+                                            backgroundColor: const Color(0xFFE7EDFF),
+                                            side: const BorderSide(color: Color(0xFFAABEF9)),
+                                            labelStyle: const TextStyle(color: Color(0xFF1D4DE2),
+                                              fontWeight: FontWeight.w600),
                                             label: Text(
                                               calificado
                                                   ? 'Calificado'
@@ -1600,10 +1655,17 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
                                             ),
                                           ),
                                           TextButton(
+                                            style: TextButton.styleFrom(
+                                              backgroundColor: const Color(0xFFFCE7F3),
+                                              foregroundColor: const Color(0xFFBE1176)),
                                             onPressed: () => _detalles(j),
                                             child: const Text('Ver ficha'),
                                           ),
                                           OutlinedButton(
+                                            style: OutlinedButton.styleFrom(
+                                              backgroundColor: const Color(0xFF925900),
+                                              foregroundColor: Colors.white,
+                                              side: const BorderSide(color: Color(0xFF925900))),
                                             onPressed: ocupado
                                                 ? null
                                                 : () => _revisar(j),
@@ -1614,6 +1676,9 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
                                             ),
                                           ),
                                           ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(0xFF166534),
+                                              foregroundColor: Colors.white),
                                             onPressed:
                                                 ocupado ||
                                                     !revisado ||

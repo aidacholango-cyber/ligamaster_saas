@@ -4,6 +4,7 @@ import './pantalla_superadmin.dart';
 import 'pantalla_admin_liga.dart';
 import 'pantalla_delegado.dart';
 import 'pantalla_vocal.dart';
+import 'pantalla_calificaciones.dart';
 
 class PantallaLogin extends StatefulWidget {
   const PantallaLogin({super.key});
@@ -24,6 +25,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
     'Administrador de Liga',
     'Delegado del equipo',
     'Vocal',
+    'Calificaciones',
   ];
 
   @override
@@ -40,6 +42,9 @@ class _PantallaLoginState extends State<PantallaLogin> {
         _rolSeleccionado == 'Vocal' &&
             usuarioIngresado.toLowerCase() == 'vocal2026'
         ? 'vocal2026@ligamaster.invalid'
+        : _rolSeleccionado == 'Calificaciones' &&
+            usuarioIngresado.toLowerCase() == 'calificaciones2027'
+        ? 'calificaciones2027@ligamaster.invalid'
         : usuarioIngresado;
     final password = _passwordController.text;
     final rolElegido = _rolSeleccionado;
@@ -48,6 +53,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
       'Administrador de Liga': 'admin',
       'Delegado del equipo': 'club',
       'Vocal': 'vocal',
+      'Calificaciones': 'calificaciones',
     };
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -75,7 +81,13 @@ class _PantallaLoginState extends State<PantallaLogin> {
       if (rolElegido == 'Vocal' && !vocalActivo) {
         throw StateError('Esta cuenta todavía no está habilitada como vocal.');
       }
-      final rol = vocalActivo ? 'vocal' : perfil?['rol']?.toString();
+      final comisionActiva = rolElegido == 'Calificaciones' &&
+          await db.rpc('lm_es_comision_calificaciones') == true;
+      if (rolElegido == 'Calificaciones' && !comisionActiva) {
+        throw StateError('Esta cuenta todavía no está habilitada para calificaciones.');
+      }
+      final rol = comisionActiva ? 'calificaciones'
+          : vocalActivo ? 'vocal' : perfil?['rol']?.toString();
       if (rol == null || !roles.values.contains(rol)) {
         throw StateError(
           'Tu cuenta no tiene un rol asignado. Contacta al superadministrador.',
@@ -100,6 +112,8 @@ class _PantallaLoginState extends State<PantallaLogin> {
         destino = const PantallaAdminLiga();
       } else if (rol == 'vocal') {
         destino = const PantallaVocal();
+      } else if (rol == 'calificaciones') {
+        destino = const PantallaCalificaciones();
       } else {
         final equipos = await db
             .from('equipos')
@@ -235,7 +249,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
-                        labelText: _rolSeleccionado == 'Vocal'
+        labelText: (_rolSeleccionado == 'Vocal' || _rolSeleccionado == 'Calificaciones')
                             ? 'Usuario o correo'
                             : 'Correo electrónico',
                         prefixIcon: Icon(
