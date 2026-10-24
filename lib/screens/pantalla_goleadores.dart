@@ -26,7 +26,9 @@ class _PantallaGoleadoresState extends State<PantallaGoleadores>
     final nuevos = await _leer();
     if (mounted &&
         (anteriores == null || jsonEncode(anteriores) != jsonEncode(nuevos))) {
-      setState(() => _datos = Future.value(nuevos));
+      setState(() {
+        _datos = Future.value(nuevos);
+      });
     }
   }
 

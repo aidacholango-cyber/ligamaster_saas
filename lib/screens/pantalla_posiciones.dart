@@ -24,7 +24,9 @@ class _PantallaPosicionesState extends State<PantallaPosiciones>
     final nuevos = await _leer();
     if (mounted &&
         (anteriores == null || jsonEncode(anteriores) != jsonEncode(nuevos))) {
-      setState(() => _datos = Future.value(nuevos));
+      setState(() {
+        _datos = Future.value(nuevos);
+      });
     }
   }
 
@@ -86,30 +88,65 @@ class _PantallaPosicionesState extends State<PantallaPosiciones>
     };
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columnSpacing: 20,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFBBDEC9)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: DataTable(
+        columnSpacing: 22,
+        horizontalMargin: 20,
+        headingRowHeight: 52,
+        dataRowMinHeight: 58,
+        dataRowMaxHeight: 58,
+        headingRowColor: const WidgetStatePropertyAll(Color(0xFF166534)),
+        headingTextStyle: const TextStyle(
+          color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+        border: const TableBorder(
+          horizontalInside: BorderSide(color: Color(0xFFDCE8E0))),
         columns: [
           const DataColumn(label: Text('Equipo')),
           for (final campo in campos.keys)
             DataColumn(label: Text(campo), numeric: true),
         ],
         rows: [
-          for (final equipo in equipos)
+          for (var indice = 0; indice < equipos.length; indice++)
             DataRow(
+              color: WidgetStatePropertyAll(indice.isEven
+                  ? const Color(0xFFF0FDF4) : Colors.white),
               cells: [
-                DataCell(Text(equipo['equipo'].toString())),
+                DataCell(Text(equipos[indice]['equipo'].toString(),
+                  style: const TextStyle(color: Color(0xFF1D4DE2),
+                    fontWeight: FontWeight.w600))),
                 for (final campo in campos.values)
                   DataCell(
-                    Text(
-                      _numero(equipo, campo).toString(),
-                      style: campo == 'puntos'
-                          ? const TextStyle(fontWeight: FontWeight.bold)
-                          : null,
-                    ),
+                    campo == 'puntos'
+                      ? Container(
+                          constraints: const BoxConstraints(minWidth: 36),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFBE1176),
+                            borderRadius: BorderRadius.circular(10)),
+                          child: Text(_numero(equipos[indice], campo).toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white,
+                              fontWeight: FontWeight.bold)),
+                        )
+                      : Text(_numero(equipos[indice], campo).toString(),
+                          style: TextStyle(
+                            color: campo == 'ganados' || campo == 'goles_favor'
+                              ? const Color(0xFF166534)
+                              : campo == 'perdidos' || campo == 'goles_contra'
+                              ? const Color(0xFFB82018)
+                              : campo == 'empatados'
+                              ? const Color(0xFF925900) : const Color(0xFF334155),
+                            fontWeight: FontWeight.w600)),
                   ),
               ],
             ),
         ],
+        ),
       ),
     );
   }

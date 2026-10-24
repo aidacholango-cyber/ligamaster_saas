@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../widgets/tesoreria_equipo.dart';
+import '../widgets/editar_conteo_partidos.dart';
+import 'pantalla_vocal.dart';
 
 const _azul = Color(0xFF4351BF);
 String _errorActa(Object e) {
@@ -56,6 +59,9 @@ class _PantallaPlanillaResultadoState extends State<PantallaPlanillaResultado> {
   };
   Map<String, dynamic>? _datos;
   List<_FilaJugador> _jugadores = [];
+  Future<Map<String, dynamic>>? _conteos;
+  Set<String>? _equiposAbiertosGuardados;
+  Set<String> get _equiposAbiertos => _equiposAbiertosGuardados ??= <String>{};
   bool _cargando = true,
       _ocupado = false,
       _sucio = false,
@@ -118,13 +124,23 @@ class _PantallaPlanillaResultadoState extends State<PantallaPlanillaResultado> {
         ),
       );
       if (!mounted) return;
+      // Obtener los escudos actuales sin modificar los datos del acta.
+      try {
+        final equipos = await _db.from('equipos')
+            .select('id,escudo_url,logo_url')
+            .inFilter('id', [for (final e in datos['equipos'] as List) e['id']]);
+        final porId = {for (final e in equipos) e['id'].toString(): e};
+        datos['equipos'] = [for (final e in datos['equipos'] as List)
+          {...Map<String, dynamic>.from(e), ...?porId[e['id'].toString()]}];
+      } catch (_) {
+        // Una imagen no disponible no debe impedir consultar la planilla.
+      }
+      if (!mounted) return;
       final planillas = {
         for (final p in datos['planillas'] as List)
           p['inscripcion_jugador_id']: Map<String, dynamic>.from(p),
       };
-      for (final j in _jugadores) {
-        j.dispose();
-      }
+      final jugadoresAnteriores = _jugadores;
       final resultado = datos['resultado'] as Map?;
       _jugadores = [
         for (final j in datos['jugadores'] as List)
@@ -138,9 +154,16 @@ class _PantallaPlanillaResultadoState extends State<PantallaPlanillaResultado> {
       }
       setState(() {
         _datos = datos;
+        _conteos = _consultarConteos();
         _sucio = false;
         _prorroga = resultado?['prorroga_local'] != null;
         _penales = resultado?['penales_local'] != null;
+      });
+      // Los campos anteriores deben salir del árbol antes de liberar sus controles.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        for (final jugador in jugadoresAnteriores) {
+          jugador.dispose();
+        }
       });
     } catch (e) {
       if (mounted) setState(() => _fallo = _errorActa(e));
@@ -148,6 +171,93 @@ class _PantallaPlanillaResultadoState extends State<PantallaPlanillaResultado> {
       if (mounted) setState(() => _cargando = false);
     }
   }
+
+  Future<Map<String, dynamic>> _consultarConteos() async =>
+      Map<String, dynamic>.from(await _db.rpc(
+        'lm_conteo_partidos_jugadores',
+        params: {'p_partido_id': widget.partidoId},
+      ));
+
+  Widget _conteoJugador(_FilaJugador jugador) => FutureBuilder<Map<String, dynamic>>(
+    future: _conteos,
+    builder: (context, snapshot) {
+      if (snapshot.hasError) {
+        return TextButton.icon(
+          onPressed: () => setState(() { _conteos = _consultarConteos(); }),
+          icon: const Icon(Icons.refresh),
+          label: const Text('Reintentar conteo de partidos'),
+        );
+      }
+      final conteo = snapshot.data?[jugador.datos['inscripcion_id'].toString()] as Map?;
+      final partidos = List<Map<String, dynamic>>.from(conteo?['partidos'] as List? ?? []);
+      return OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          backgroundColor: const Color(0xFFFCE6F3), foregroundColor: const Color(0xFF98105B),
+          side: const BorderSide(color: Color(0xFFE6A5CA)),
+        ),
+        icon: const Icon(Icons.event_available),
+        label: Text(snapshot.hasData ? 'Partidos jugados: ${conteo?['total'] ?? 0}' : 'Cargando conteo…'),
+        onPressed: !snapshot.hasData ? null : () async {
+          Map? conteoActual = conteo;
+          await showDialog<void>(
+          context: context,
+          builder: (ctx) => StatefulBuilder(builder: (ctx, actualizarDialogo) => AlertDialog(
+            title: Text('Partidos · ${jugador.datos['nombres']} ${jugador.datos['apellidos'] ?? ''}'),
+            content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Total en este campeonato: ${conteoActual?['total'] ?? 0}',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text('Automático: ${conteoActual?['automatico'] ?? conteoActual?['total'] ?? 0} · Ajuste manual: ${conteoActual?['ajuste'] ?? 0}'),
+                const SizedBox(height: 8),
+                const Text('Conteo automático de resultados confirmados. Solo cuenta a quienes están marcados como participantes.'),
+                for (final p in partidos) ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Jornada ${p['jornada']} · Partido ${p['numero_partido']}'),
+                  subtitle: Text('${p['local']} vs ${p['visitante']}'),
+                ),
+                if (partidos.isEmpty) const Padding(
+                  padding: EdgeInsets.only(top: 12),
+                  child: Text('Todavía no tiene participaciones confirmadas.'),
+                ),
+              ],
+            ))),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar')),
+              FilledButton.icon(
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Editar conteo'),
+                onPressed: () async {
+                  final guardado = await editarConteoPartidos(ctx,
+                    inscripcionId: jugador.datos['inscripcion_id'].toString(),
+                    total: (conteoActual?['total'] as num?)?.toInt() ?? 0,
+                    ajuste: (conteoActual?['ajuste'] as num?)?.toInt() ?? 0,
+                  );
+                  if (guardado == true && mounted) {
+                    try {
+                      final nuevos = await _consultarConteos();
+                      if (!mounted) return;
+                      setState(() { _conteos = Future.value(nuevos); });
+                      if (ctx.mounted) actualizarDialogo(() {
+                        conteoActual = nuevos[jugador.datos['inscripcion_id'].toString()] as Map?;
+                      });
+                    } catch (e) {
+                      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(
+                        SnackBar(content: Text('La corrección se guardó, pero no se pudo actualizar el conteo: ${_errorActa(e)}')),
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
+          )),
+        );
+        },
+
+      );
+    },
+  );
 
   Future<bool> _descartar() async {
     if (!_sucio) return true;
@@ -323,13 +433,27 @@ class _PantallaPlanillaResultadoState extends State<PantallaPlanillaResultado> {
   Widget _entero(TextEditingController c, String label, {bool? enabled}) =>
       SizedBox(
         width: 145,
-        child: TextFormField(
+        child: !(enabled ?? _editable)
+            ? InputDecorator(
+                decoration: InputDecoration(
+                  labelText: label,
+                  enabled: false,
+                  filled: true,
+                  fillColor: label == 'Autogoles' ? const Color(0xFFFFF0DC) : const Color(0xFFE2F3E8),
+                  border: const OutlineInputBorder(),
+                ),
+                child: Text(c.text, style: const TextStyle(color: Colors.black87)),
+              )
+            : TextFormField(
+          key: ObjectKey(c),
           controller: c,
           enabled: enabled ?? _editable,
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           decoration: InputDecoration(
             labelText: label,
+            filled: true,
+            fillColor: label == 'Autogoles' ? const Color(0xFFFFF0DC) : const Color(0xFFE2F3E8),
             border: const OutlineInputBorder(),
           ),
           validator: (v) {
@@ -341,58 +465,85 @@ class _PantallaPlanillaResultadoState extends State<PantallaPlanillaResultado> {
           onChanged: (_) => _cambio(),
         ),
       );
-  Widget _tablaEquipo(dynamic id) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _escudoEquipo(dynamic id) {
+    final equipo = (_datos!['equipos'] as List).firstWhere(
+      (e) => e['id'] == id, orElse: () => <String, dynamic>{});
+    final escudo = equipo['escudo_url']?.toString().trim() ?? '';
+    final url = escudo.isNotEmpty ? escudo
+      : equipo['logo_url']?.toString().trim() ?? '';
+    final respaldo = Icon(Icons.shield_outlined, size: 44,
+      color: id == _partido['equipo_local_id']
+        ? const Color(0xFF166534) : const Color(0xFF1D4ED8));
+    return Center(child: Container(
+      width: 70, height: 70,
+      margin: const EdgeInsets.only(bottom: 8),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFD8E8DE))),
+      child: url.isEmpty ? respaldo : Image.network(url, fit: BoxFit.cover,
+        webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
+        errorBuilder: (_, error, stack) => respaldo),
+    ));
+  }
+
+  Widget _tablaEquipo(dynamic id) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      _escudoEquipo(id),
+      Center(child: SizedBox(width: 360, child: FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: id == _partido['equipo_local_id'] ? const Color(0xFF166534) : const Color(0xFF1D4ED8),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        onPressed: () => setState(() {
+          if (!_equiposAbiertos.add(id.toString())) _equiposAbiertos.remove(id.toString());
+        }),
+        child: Row(children: [
+          const SizedBox(width: 24),
+          Expanded(child: Text(_nombreEquipo(id), textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+          Icon(_equiposAbiertos.contains(id.toString()) ? Icons.expand_less : Icons.expand_more, size: 24),
+        ]),
+      ))),
+      if (_equiposAbiertos.contains(id.toString()))
+      Card(
+        color: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFFB6DCC7))),
+        child: Padding(padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            _nombreEquipo(id),
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: _azul,
-            ),
-          ),
-          if (!_jugadores.any((j) => j.datos['equipo_id'] == id))
+          if (!_jugadores.any((j) => j.datos['equipo_id'] == id && j.participo))
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Text(
-                'No hay jugadores inscritos en este campeonato y categoría. Agrégalos desde Equipos participantes.',
+                'No hay participantes registrados en esta planilla. Puedes ingresarlos desde Ingresar vocalía manual.',
               ),
             ),
-          for (final j in _jugadores.where((j) => j.datos['equipo_id'] == id))
+          for (final j in _jugadores.where((j) => j.datos['equipo_id'] == id && j.participo))
             Padding(
+              key: ValueKey('jugador-acta:${j.datos['inscripcion_id']}'),
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CheckboxListTile(
+                  ListTile(
                     contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    value: j.participo,
                     title: Text(
                       '${j.datos['nombres']} ${j.datos['apellidos'] ?? ''}',
                     ),
                     subtitle: Text(
                       'Camiseta: ${j.datos['camiseta'] ?? 'Sin registrar'} · ${j.activo ? (j.datos['estado_jugador'] ?? 'Inscrito') : 'Retirado'}',
                     ),
-                    onChanged: _editable && (j.activo || j.participo)
-                        ? (v) => setState(() {
-                            j.participo = v == true;
-                            _sucio = true;
-                            if (!j.participo) {
-                              j.goles.text = '0';
-                              j.autogoles.text = '0';
-                            }
-                          })
-                        : null,
                   ),
                   Wrap(
                     spacing: 12,
                     runSpacing: 8,
                     children: [
+                      _conteoJugador(j),
                       _entero(
                         j.goles,
                         'Goles',
@@ -410,6 +561,8 @@ class _PantallaPlanillaResultadoState extends State<PantallaPlanillaResultado> {
                           initialValue: j.amarillas,
                           decoration: const InputDecoration(
                             labelText: 'Amarillas',
+                            filled: true,
+                            fillColor: Color(0xFFFFF3C4),
                             border: OutlineInputBorder(),
                           ),
                           items: const [
@@ -431,6 +584,8 @@ class _PantallaPlanillaResultadoState extends State<PantallaPlanillaResultado> {
                       SizedBox(
                         width: 195,
                         child: CheckboxListTile(
+                          tileColor: const Color(0xFFFDE8E7),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           contentPadding: EdgeInsets.zero,
                           title: const Text('Roja directa'),
                           controlAffinity: ListTileControlAffinity.leading,
@@ -451,9 +606,11 @@ class _PantallaPlanillaResultadoState extends State<PantallaPlanillaResultado> {
                 ],
               ),
             ),
+          TesoreriaEquipo(partidoId: widget.partidoId, equipoId: id.toString()),
         ],
-      ),
-    ),
+        ),
+      )),
+    ]),
   );
   @override
   Widget build(BuildContext context) => PopScope(
@@ -548,6 +705,31 @@ class _PantallaPlanillaResultadoState extends State<PantallaPlanillaResultado> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+                            if (!_confirmado && !_cerrado)
+                              Align(alignment: Alignment.centerLeft, child: OutlinedButton.icon(
+                                icon: const Icon(Icons.edit_document),
+                                label: const Text('Ingresar vocalía manual'),
+                                onPressed: _ocupado ? null : () async {
+                                  if (!await _descartar() || !mounted) return;
+                                  if (!context.mounted) return;
+                                  await Navigator.push(context, MaterialPageRoute(
+                                    builder: (_) => PlanillaVocal(partidoId: widget.partidoId, edicionAdministrador: true),
+                                  ));
+                                  if (mounted) await _leer();
+                                },
+                              )),
+                            if (_confirmado)
+                              Align(alignment: Alignment.centerLeft, child: OutlinedButton.icon(
+                                icon: const Icon(Icons.description_outlined),
+                                label: const Text('Hoja de vocalía'),
+                                style: OutlinedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFBC1676), foregroundColor: Colors.white,
+                                  side: BorderSide.none,
+                                ),
+                                onPressed: () => Navigator.push(context, MaterialPageRoute(
+                                  builder: (_) => PlanillaVocal(partidoId: widget.partidoId, soloLectura: true),
+                                )),
+                              )),
                             if (_cerrado)
                               const Text(
                                 'Campeonato o fase cerrados: solo consulta.',
@@ -558,92 +740,11 @@ class _PantallaPlanillaResultadoState extends State<PantallaPlanillaResultado> {
                               ),
                             const SizedBox(height: 12),
                             const Text(
-                              'Marca únicamente a quienes jugaron. Los goles incluyen los anotados en prórroga. No incluyas los penales de la tanda en los goles del jugador.',
+                              'Selecciona un equipo para consultar sus jugadores, partidos jugados y cobros.',
                             ),
                             _tablaEquipo(_partido['equipo_local_id']),
                             _tablaEquipo(_partido['equipo_visitante_id']),
                             const SizedBox(height: 16),
-                            const Text(
-                              'Marcador del tiempo reglamentario',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 12,
-                              runSpacing: 8,
-                              children: [
-                                _entero(_marcador['goles_local']!, 'Local'),
-                                _entero(
-                                  _marcador['goles_visitante']!,
-                                  'Visitante',
-                                ),
-                              ],
-                            ),
-                            SwitchListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text('Hubo prórroga'),
-                              value: _prorroga,
-                              onChanged: _editable
-                                  ? (v) => setState(() {
-                                      _prorroga = v;
-                                      _sucio = true;
-                                      if (!v) _penales = false;
-                                    })
-                                  : null,
-                            ),
-                            if (_prorroga) ...[
-                              const Text(
-                                'Goles adicionales durante la prórroga, no el marcador acumulado.',
-                              ),
-                              const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 12,
-                                runSpacing: 8,
-                                children: [
-                                  _entero(
-                                    _marcador['prorroga_local']!,
-                                    'Prórroga local',
-                                  ),
-                                  _entero(
-                                    _marcador['prorroga_visitante']!,
-                                    'Prórroga visitante',
-                                  ),
-                                ],
-                              ),
-                              SwitchListTile(
-                                contentPadding: EdgeInsets.zero,
-                                title: const Text('Hubo tanda de penales'),
-                                value: _penales,
-                                onChanged: _editable
-                                    ? (v) => setState(() {
-                                        _penales = v;
-                                        _sucio = true;
-                                      })
-                                    : null,
-                              ),
-                            ],
-                            if (_penales)
-                              Wrap(
-                                spacing: 12,
-                                runSpacing: 8,
-                                children: [
-                                  _entero(
-                                    _marcador['penales_local']!,
-                                    'Penales local',
-                                  ),
-                                  _entero(
-                                    _marcador['penales_visitante']!,
-                                    'Penales visitante',
-                                  ),
-                                ],
-                              ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Marcador según planillas: ${_totales[0]} – ${_totales[1]} (incluye autogoles a favor del rival).',
-                            ),
                             if (_fallo != null)
                               Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -677,14 +778,7 @@ class _PantallaPlanillaResultadoState extends State<PantallaPlanillaResultado> {
                                     child: const Text('Guardar y confirmar'),
                                   ),
                                 ],
-                                if (_confirmado)
-                                  OutlinedButton.icon(
-                                    onPressed: _ocupado || _cerrado
-                                        ? null
-                                        : _reabrir,
-                                    icon: const Icon(Icons.edit_note),
-                                    label: const Text('Reabrir con motivo'),
-                                  ),
+
                               ],
                             ),
                           ],

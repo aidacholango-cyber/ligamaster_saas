@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'pantalla_login.dart';
 import 'accesos_campeonato.dart';
+import '../widgets/tesoreria_equipo.dart';
 import 'ajustar_foto.dart';
 import '../widgets/imagen_cedula.dart';
 
@@ -76,7 +77,7 @@ String _error(Object e) {
   }
   if (e is PostgrestException) {
     if (e.code == '23505')
-      return 'Este jugador ya está inscrito en una categoría incompatible de la misma liga.';
+      return 'No se pudo guardar por un registro duplicado: ${e.message}. Detalle: ${e.details ?? ''}';
     if (e.code == '23503')
       return 'El jugador ya tiene inscripciones en campeonatos. Solicita al administrador el cambio de categoría.';
     return e.message;
@@ -199,6 +200,7 @@ class _PanelDelegado extends StatefulWidget {
 class _PanelDelegadoState extends State<_PanelDelegado> {
   final _db = Supabase.instance.client;
   List<Map<String, dynamic>> _equipos = [], _jugadores = [];
+  List<Map<String, dynamic>> _inscripciones = [];
   Map<String, dynamic>? _equipo;
   String _categoria = _categorias.first, _busqueda = '';
   String _filtroEstado = 'Todos';
@@ -249,9 +251,9 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
     final confirmado = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Borrar jugador definitivamente'),
+        title: const Text('Retirar jugador del campeonato'),
         content: Text(
-          'Se eliminará la ficha de ${_nombre(j)} y sus fotos no compartidas. Esta acción no se puede deshacer. Si tiene historial, se bloqueará el borrado. ¿Deseas continuar?',
+          'Se retirará a ${_nombre(j)} únicamente de ${_campeonato!['nombre']}. Su ficha, fotos e inscripciones en otros campeonatos se conservarán. ¿Deseas continuar?',
         ),
         actions: [
           TextButton(
@@ -261,7 +263,7 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text(
-              'Borrar definitivamente',
+              'Retirar de este campeonato',
               style: TextStyle(color: Colors.red),
             ),
           ),
@@ -272,19 +274,13 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
     setState(() => _ocupado = true);
     try {
       await _db.rpc(
-        'lm_borrar_jugador_en_periodo',
-        params: {'p_campeonato_id': campeonato, 'p_jugador_id': j['id']},
+        'lm_retirar_jugador_delegado',
+        params: {
+          'p_campeonato_id': campeonato,
+          'p_jugador_id': j['id'],
+        },
       );
-      try {
-        await _limpiarFotos();
-        _aviso(
-          'Ficha borrada. Se eliminaron las fotos no compartidas compatibles con el almacenamiento de la aplicación.',
-        );
-      } catch (_) {
-        _aviso(
-          'Ficha borrada. Quedaron fotos pendientes: pulsa Actualizar para reintentar su eliminación.',
-        );
-      }
+      _aviso('Jugador retirado únicamente del campeonato seleccionado.');
       if (mounted) await _leer();
     } catch (e) {
       _aviso(_error(e));
@@ -336,13 +332,30 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                   .eq('equipo_id', equipo['id'])
                   .order('apellidos'),
             );
-      final campeonatos = equipo == null
+      final campeonatosDisponibles = equipo == null
           ? <Map<String, dynamic>>[]
           : List<Map<String, dynamic>>.from(
               await _db.rpc(
                 'lm_campeonatos_delegado',
                 params: {'p_equipo_id': equipo['id']},
               ),
+            );
+      final vigencias = equipo == null
+          ? <Map<String, dynamic>>[]
+          : List<Map<String, dynamic>>.from(await _db.rpc(
+              'lm_campeonatos_vigencia_equipo',
+              params: {'p_equipo_id': equipo['id']},
+            ));
+      final campeonatos = campeonatosDisponibles.where((c) => vigencias.any(
+        (v) => v['id'].toString() == c['id'].toString() && v['activo'] == true,
+      )).toList();
+      final inscripciones = equipo == null
+          ? <Map<String, dynamic>>[]
+          : List<Map<String, dynamic>>.from(
+              await _db
+                  .from('campeonato_jugadores')
+                  .select('campeonato_id,jugador_id,estado')
+                  .eq('equipo_id', equipo['id']),
             );
       try {
         await _limpiarFotos();
@@ -354,6 +367,7 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
           _equipos = equipos;
           _equipo = equipo;
           _jugadores = jugadores;
+          _inscripciones = inscripciones;
         });
     } catch (e) {
       if (mounted) setState(() => _fallo = _error(e));
@@ -540,10 +554,17 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
 
   @override
   Widget build(BuildContext context) {
-    final deCategoria = _jugadores
+    final jugadoresCampeonato = _campeonato == null
+        ? _jugadores
+        : _jugadores.where((j) => !_inscripciones.any(
+            (i) => i['campeonato_id'].toString() == _campeonato!['id'].toString() &&
+                i['jugador_id'].toString() == j['id'].toString() &&
+                i['estado'] == 'retirado',
+          )).toList();
+    final deCategoria = jugadoresCampeonato
         .where((j) => j['categoria'] == _categoria)
         .toList();
-    final filtrados = _jugadores
+    final filtrados = jugadoresCampeonato
         .where(
           (j) =>
               j['categoria'] == _categoria &&
@@ -727,37 +748,8 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                             ],
                           ),
                           const SizedBox(height: 16),
-                          if (_campeonatos.any(
-                            (c) => c['categoria'] == _categoria,
-                          )) ...[
-                            ControlCentrado(
-                              ancho: 520,
-                              child: DropdownButtonFormField<String>(
-                                key: ValueKey(
-                                  '${_equipo!['id']}:$_categoria:${_campeonato?['id']}',
-                                ),
-                                initialValue: _campeonato?['id']?.toString(),
-                                isExpanded: true,
-                                decoration: const InputDecoration(
-                                  labelText: 'Campeonato para inscripción',
-                                  border: OutlineInputBorder(),
-                                ),
-                                items: [
-                                  for (final c in _campeonatos.where(
-                                    (c) => c['categoria'] == _categoria,
-                                  ))
-                                    DropdownMenuItem(
-                                      value: c['id'].toString(),
-                                      child: Text(c['nombre'].toString()),
-                                    ),
-                                ],
-                                onChanged: _ocupado
-                                    ? null
-                                    : (v) => setState(() => _campeonatoId = v),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                          ],
+                          Text(_campeonato == null ? 'No hay un campeonato activo en esta categoría.' : 'Campeonato activo: ${_campeonato!['nombre']}'),
+                          const SizedBox(height: 8),
                           if (_campeonato != null)
                             AccesosCampeonato(
                               campeonato: Map<String, dynamic>.from(
@@ -778,6 +770,12 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                             ),
                           ),
                           const SizedBox(height: 12),
+                          if (_campeonato != null)
+                            TesoreriaCampeonatoDelegado(
+                              key: ValueKey('tesoreria:${_campeonato!['id']}:${_equipo!['id']}'),
+                              campeonatoId: _campeonato!['id'].toString(),
+                              equipoId: _equipo!['id'].toString(),
+                            ),
                           ControlCentrado(
                             ancho: 620,
                             child: TextField(
@@ -825,7 +823,7 @@ class _PanelDelegadoState extends State<_PanelDelegado> {
                           const SizedBox(height: 8),
                           Text(
                             textAlign: TextAlign.center,
-                            'Jugadores en esta categoría: ${_jugadores.where((j) => j['categoria'] == _categoria).length} · Coincidencias: ${filtrados.length}',
+                            'Jugadores en esta categoría: ${deCategoria.length} · Coincidencias: ${filtrados.length}',
                           ),
                           if (filtrados.isEmpty)
                             const Padding(

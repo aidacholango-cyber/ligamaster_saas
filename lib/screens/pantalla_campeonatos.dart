@@ -1,3 +1,4 @@
+import '../widgets/control_campeonato_activo.dart';
 import 'accesos_campeonato.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -226,8 +227,11 @@ class _PantallaCampeonatosState extends State<PantallaCampeonatos> {
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-                                DropdownButtonFormField<String>(
+                                SizedBox(
+                                  width: 300,
+                                  child: DropdownButtonFormField<String>(
                                   key: ValueKey('${c['id']}'),
+                                  isExpanded: true,
                                   initialValue: c['categoria'],
                                   decoration: const InputDecoration(
                                     labelText: 'Categoría',
@@ -251,11 +255,16 @@ class _PantallaCampeonatosState extends State<PantallaCampeonatos> {
                                                 .toString()] =
                                             v!,
                                   ),
+                                  ),
                                 ),
                                 Text(
                                   '${_formatos[c['formato']] ?? c['formato']}',
                                 ),
                                 Text('Estado: ${c['estado']}'),
+                                ControlCampeonatoActivo(
+                                  campeonato: c,
+                                  alGuardar: _actualizar,
+                                ),
                                 _PeriodoInscripcion(
                                   campeonato: c,
                                   alGuardar: _actualizar,
@@ -645,6 +654,27 @@ class _ParticipantesState extends State<_Participantes> {
   bool _ocupado = false;
   List<Map<String, dynamic>> _catalogoEquipos = [];
   bool get _jugadores => widget.equipo != null;
+
+  Widget _escudoEquipo(Map<String, dynamic> equipo) {
+    final escudo = equipo['escudo_url']?.toString().trim() ?? '';
+    final url = escudo.isNotEmpty ? escudo
+        : equipo['logo_url']?.toString().trim() ?? '';
+    const respaldo = Icon(Icons.shield_outlined, color: Colors.white, size: 32);
+    return SizedBox(width: 58, height: 58,
+      child: url.isEmpty ? respaldo : Image.network(url,
+        fit: BoxFit.cover,
+        webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
+        errorBuilder: (_, error, stack) => respaldo));
+  }
+
+  Color _colorParticipante(Map<String, dynamic> fila) {
+    const colores = [Color(0xFF166534), Color(0xFF1D4DE2),
+      Color(0xFFBE1176), Color(0xFF925900), Color(0xFFB82018)];
+    // La identidad mantiene el color aunque se agreguen o retiren otros equipos.
+    final identidad = '${fila['equipo_id'] ?? fila['id'] ?? fila['nombre'] ?? ''}';
+    final indice = identidad.codeUnits.fold<int>(0, (suma, letra) => suma + letra);
+    return colores[indice % colores.length];
+  }
   final _db = Supabase.instance.client;
   @override
   void initState() {
@@ -666,6 +696,17 @@ class _ParticipantesState extends State<_Participantes> {
         params: {'p_campeonato_id': widget.campeonato['id']},
       );
       _catalogoEquipos = List<Map<String, dynamic>>.from(respuesta);
+      // El listado del campeonato puede no incluir los campos del escudo.
+      final ids = _catalogoEquipos.map((e) => e['id'].toString()).toSet().toList();
+      for (var inicio = 0; inicio < ids.length; inicio += 500) {
+        final fin = inicio + 500 < ids.length ? inicio + 500 : ids.length;
+        final equipos = await _db.from('equipos')
+            .select('id,escudo_url,logo_url')
+            .inFilter('id', ids.sublist(inicio, fin));
+        final porId = {for (final e in equipos) e['id'].toString(): e};
+        _catalogoEquipos = [for (final e in _catalogoEquipos)
+          {...e, ...?porId[e['id'].toString()]}];
+      }
       return _catalogoEquipos
           .where((e) => e['_estado']?.toString().trim() == 'inscrito')
           .toList();
@@ -822,11 +863,13 @@ class _ParticipantesState extends State<_Participantes> {
     setState(() => _ocupado = true);
     try {
       await _db.rpc(
-        'lm_retirar_inscripcion_campeonato',
+        _jugadores
+            ? 'lm_retirar_inscripcion_campeonato'
+            : 'lm_retirar_equipo_campeonato',
         params: {
           'p_campeonato_id': widget.campeonato['id'],
           'p_equipo_id': _jugadores ? widget.equipo!['id'] : fila['id'],
-          'p_jugador_id': _jugadores ? fila['id'] : null,
+          if (_jugadores) 'p_jugador_id': fila['id'],
         },
       );
       if (mounted) _recargar();
@@ -987,7 +1030,11 @@ class _ParticipantesState extends State<_Participantes> {
                       ),
                       Align(
                         alignment: Alignment.centerLeft,
-                        child: TextButton.icon(
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF166534),
+                            foregroundColor: Colors.white,
+                          ),
                           onPressed: _ocupado ? null : _agregar,
                           icon: const Icon(Icons.add),
                           label: Text(
@@ -1004,26 +1051,55 @@ class _ParticipantesState extends State<_Participantes> {
                         ),
                       for (final f in filas)
                         Card(
+                          margin: const EdgeInsets.only(top: 12),
+                          color: _colorParticipante(f).withValues(alpha: 0.07),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(color: _colorParticipante(f)
+                              .withValues(alpha: 0.35)),
+                          ),
                           child: Padding(
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.all(16),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
+                                Row(children: [
+                                  Container(
+                                    padding: _jugadores ? const EdgeInsets.all(10) : EdgeInsets.zero,
+                                    clipBehavior: Clip.antiAlias,
+                                    decoration: BoxDecoration(
+                                      color: _jugadores ? _colorParticipante(f) : Colors.white,
+                                      borderRadius: BorderRadius.circular(12)),
+                                    child: _jugadores
+                                      ? const Icon(Icons.person, color: Colors.white, size: 22)
+                                      : _escudoEquipo(f),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: Text(
                                   _jugadores
                                       ? '${f['nombres']} ${f['apellidos'] ?? ''}'
                                       : f['nombre'].toString(),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: _colorParticipante(f),
                                   ),
-                                ),
+                                  )),
+                                ]),
+                                const SizedBox(height: 12),
                                 if (_jugadores)
                                   Text(
                                     'Cédula: ${f['cedula']} · ${f['posicion'] ?? ''}',
                                   ),
                                 Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
                                   children: [
                                     IconButton(
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: const Color(0xFF1D4DE2)
+                                          .withValues(alpha: 0.1)),
                                       tooltip: _jugadores
                                           ? 'Ver datos'
                                           : 'Ver jugadores',
@@ -1038,6 +1114,9 @@ class _ParticipantesState extends State<_Participantes> {
                                       ),
                                     ),
                                     IconButton(
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: const Color(0xFF925900)
+                                          .withValues(alpha: 0.1)),
                                       tooltip: 'Editar datos generales',
                                       onPressed: _ocupado
                                           ? null
@@ -1048,6 +1127,9 @@ class _ParticipantesState extends State<_Participantes> {
                                       ),
                                     ),
                                     IconButton(
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: const Color(0xFFB82018)
+                                          .withValues(alpha: 0.1)),
                                       tooltip: 'Retirar del campeonato',
                                       onPressed: _ocupado
                                           ? null
@@ -1237,7 +1319,8 @@ class _PeriodoInscripcionState extends State<_PeriodoInscripcion> {
   }
 
   @override
-  Widget build(BuildContext context) => TextButton.icon(
+  Widget build(BuildContext context) => FilledButton.icon(
+    style: FilledButton.styleFrom(backgroundColor: const Color(0xFFBC1676), foregroundColor: Colors.white),
     onPressed: _abrir,
     icon: const Icon(Icons.date_range_outlined),
     label: const Text('Fechas de inscripción'),

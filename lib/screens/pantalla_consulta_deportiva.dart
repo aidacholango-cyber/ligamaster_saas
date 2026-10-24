@@ -31,7 +31,9 @@ class _PantallaConsultaDeportivaState extends State<PantallaConsultaDeportiva>
     final nuevos = await _leer();
     if (mounted &&
         (anteriores == null || jsonEncode(anteriores) != jsonEncode(nuevos))) {
-      setState(() => _datos = Future.value(nuevos));
+      setState(() {
+        _datos = Future.value(nuevos);
+      });
     }
   }
 

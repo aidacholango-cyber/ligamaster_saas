@@ -2,8 +2,17 @@ import '../widgets/refresco_deportivo.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'pantalla_planilla_resultado.dart';
+import 'pantalla_vocal.dart';
 
 const _azul = Color(0xFF4351BF);
+ButtonStyle _estiloAccion(Color color) => FilledButton.styleFrom(
+  backgroundColor: color,
+  foregroundColor: Colors.white,
+  minimumSize: const Size(0, 38),
+  padding: const EdgeInsets.symmetric(horizontal: 10),
+  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+);
 const _tipos = {
   'todos_contra_todos': 'Todos contra todos',
   'grupos': 'Grupos',
@@ -236,6 +245,38 @@ class _PantallaFixtureState extends State<PantallaFixture>
     );
   }
 
+  Future<void> _borrarPartido(Map<String, dynamic> partido) async {
+    if (!_editable || _ocupado || _confirmados.contains(partido['id'])) return;
+    final aceptar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Borrar partido'),
+        content: Text(
+          'Se borrará únicamente el partido ${partido['numero_partido']} de la jornada ${partido['jornada']}. Los equipos y los demás partidos se conservarán. ¿Deseas continuar?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Borrar', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (aceptar != true || !mounted) return;
+    setState(() => _ocupado = true);
+    try {
+      await _db.rpc('lm_fixture_borrar_partido', params: {
+        'p_partido_id': partido['id'],
+      });
+      if (mounted) await _leer();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_error(e))),
+      );
+    } finally {
+      if (mounted) setState(() => _ocupado = false);
+    }
+  }
+
   Future<void> _generar() async {
     bool vuelta = false;
     final cantidad = _equiposSeleccionados.length;
@@ -335,7 +376,7 @@ class _PantallaFixtureState extends State<PantallaFixture>
         : Align(
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1100),
+              constraints: const BoxConstraints(maxWidth: 480),
               child: ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
@@ -405,8 +446,11 @@ class _PantallaFixtureState extends State<PantallaFixture>
                           ),
                         if (_fases.isNotEmpty) ...[
                           const SizedBox(height: 16),
-                          DropdownButtonFormField<String>(
+                          SizedBox(
+                            width: 360,
+                            child: DropdownButtonFormField<String>(
                             key: ValueKey('fase-$_faseId'),
+                            isExpanded: true,
                             initialValue: _faseId,
                             decoration: const InputDecoration(
                               labelText: 'Fase',
@@ -426,6 +470,7 @@ class _PantallaFixtureState extends State<PantallaFixture>
                                     _grupoId = _gruposFase.firstOrNull?['id']
                                         ?.toString();
                                   }),
+                            ),
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -573,7 +618,19 @@ class _PantallaFixtureState extends State<PantallaFixture>
                                       ),
                                       label: const Text('Editar programación'),
                                     ),
-                                    OutlinedButton.icon(
+                                    SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: Row(children: [
+                                    FilledButton.icon(
+                                      style: _estiloAccion(const Color(0xFFB42318)),
+                                      onPressed: _editable && !_ocupado && !_confirmados.contains(p['id'])
+                                          ? () => _borrarPartido(p) : null,
+                                      icon: const Icon(Icons.delete_outline, size: 17),
+                                      label: const Text('Borrar'),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    FilledButton.icon(
+                                      style: _estiloAccion(const Color(0xFF166534)),
                                       onPressed: _ocupado
                                           ? null
                                           : () async {
@@ -596,7 +653,31 @@ class _PantallaFixtureState extends State<PantallaFixture>
                                       icon: const Icon(
                                         Icons.assignment_outlined,
                                       ),
-                                      label: const Text('Planilla y resultado'),
+                                      label: const Text('Planilla'),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    if (_editable && !_confirmados.contains(p['id']))
+                                      FilledButton.icon(
+                                        style: _estiloAccion(const Color(0xFF1D4ED8)),
+                                        icon: const Icon(Icons.edit_document, size: 17),
+                                        label: const Text('Vocalía manual'),
+                                        onPressed: _ocupado ? null : () async {
+                                          await Navigator.push(context, MaterialPageRoute(
+                                            builder: (_) => PlanillaVocal(partidoId: p['id'].toString(), edicionAdministrador: true),
+                                          ));
+                                          if (mounted) await _leer();
+                                        },
+                                      ),
+                                    if (_confirmados.contains(p['id']))
+                                      FilledButton.icon(
+                                        style: _estiloAccion(const Color(0xFFBC1676)),
+                                        icon: const Icon(Icons.description_outlined, size: 17),
+                                        label: const Text('Hoja de vocalía'),
+                                        onPressed: () => Navigator.push(context, MaterialPageRoute(
+                                          builder: (_) => PlanillaVocal(partidoId: p['id'].toString(), soloLectura: true),
+                                        )),
+                                      ),
+                                      ]),
                                     ),
                                   ],
                                 ),

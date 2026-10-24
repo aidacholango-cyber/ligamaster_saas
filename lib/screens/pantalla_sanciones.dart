@@ -24,7 +24,9 @@ class _PantallaSancionesState extends State<PantallaSanciones>
     final nuevos = await _leer();
     if (mounted &&
         (anteriores == null || jsonEncode(anteriores) != jsonEncode(nuevos))) {
-      setState(() => _datos = Future.value(nuevos));
+      setState(() {
+        _datos = Future.value(nuevos);
+      });
     }
   }
 
@@ -55,6 +57,32 @@ class _PantallaSancionesState extends State<PantallaSanciones>
   int _numero(Map<String, dynamic> fila, String campo) =>
       (fila[campo] as num?)?.toInt() ?? 0;
 
+  Widget _cuadro(String titulo, String valor, Color color, IconData icono) {
+    return Container(
+      width: 170,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(icono, size: 20, color: color),
+            const SizedBox(width: 10),
+            Expanded(child: Text(valor, style: TextStyle(
+              fontSize: 24, fontWeight: FontWeight.bold, color: color))),
+          ]),
+          const SizedBox(height: 8),
+          Text(titulo, style: TextStyle(color: color,
+            fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
   Widget _jugador(Map<String, dynamic> fila) {
     final fechas = fila['fechas_por_revisar'] == true;
     final incumplimiento = _numero(fila, 'participaciones_suspendido') > 0;
@@ -78,8 +106,14 @@ class _PantallaSancionesState extends State<PantallaSanciones>
         ? 'Suspensión cumplida'
         : 'Sin suspensión';
     return Card(
+      color: Colors.white,
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: Color(0xFFD8E8DE)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -89,33 +123,48 @@ class _PantallaSancionesState extends State<PantallaSanciones>
             ),
             Text(fila['equipo'].toString()),
             const SizedBox(height: 8),
-            Text(
-              estado,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: fechas || incumplimiento
-                    ? Colors.orange.shade900
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: (fechas || incumplimiento
+                    ? const Color(0xFF925900)
                     : pendientes > 0
-                    ? Colors.red.shade700
-                    : Colors.green.shade800,
+                    ? const Color(0xFFB82018)
+                    : const Color(0xFF166534)),
+                borderRadius: BorderRadius.circular(20),
               ),
+              child: Text(estado, style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              )),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Amarillas totales: ${fila['amarillas_total']} · '
-              'Ciclo actual: ${fila['amarillas_ciclo_actual']}/5',
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _cuadro('Amarillas totales', '${_numero(fila, 'amarillas_total')}',
+                  const Color(0xFF925900), Icons.style),
+                _cuadro('Ciclo de amarillas', '${_numero(fila, 'amarillas_ciclo_actual')}/5',
+                  const Color(0xFFBE1176), Icons.autorenew),
+                _cuadro('Suspensiones generadas', '$generados',
+                  const Color(0xFF1D4DE2), Icons.gavel),
+                if (!fechas) ...[
+                  _cuadro('Partidos cumplidos', '${_numero(fila, 'partidos_cumplidos')}',
+                    const Color(0xFF166534), Icons.check_circle_outline),
+                  _cuadro('Partidos pendientes', '$pendientes',
+                    const Color(0xFFB82018), Icons.event_busy),
+                ],
+              ],
             ),
+            const SizedBox(height: 10),
             if (motivos.isNotEmpty) Text(motivos.join(' · ')),
-            Text('Partidos de suspensión generados: $generados'),
             if (fechas)
               const Text(
                 'El administrador debe revisar las fechas de los partidos '
                 'confirmados. No se puede determinar el cumplimiento todavía.',
               )
             else ...[
-              Text(
-                'Cumplidos: ${fila['partidos_cumplidos']} · Pendientes: $pendientes',
-              ),
               if (incumplimiento)
                 const Text(
                   'Se registró participación durante una suspensión. '

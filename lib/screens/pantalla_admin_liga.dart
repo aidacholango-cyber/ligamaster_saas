@@ -1047,7 +1047,21 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
         .eq('equipo_id', equipoId)
         .order('apellidos')
         .order('nombres');
-    return List<Map<String, dynamic>>.from(datos);
+    final campeonatos = List<Map<String, dynamic>>.from(
+      await cliente.rpc('lm_campeonatos_vigencia_equipo',
+        params: {'p_equipo_id': equipoId}),
+    );
+    final inscripciones = await cliente.from('campeonato_jugadores')
+        .select('campeonato_id,jugador_id,estado')
+        .eq('equipo_id', equipoId);
+    return List<Map<String, dynamic>>.from(datos).where((jugador) {
+      final activo = campeonatos.where((c) => c['activo'] == true &&
+        c['categoria'] == jugador['categoria']).firstOrNull;
+      return activo == null || !inscripciones.any((i) =>
+        i['campeonato_id'].toString() == activo['id'].toString() &&
+        i['jugador_id'].toString() == jugador['id'].toString() &&
+        i['estado'] == 'retirado');
+    }).toList();
   }
 
   void _recargar() {
@@ -1401,11 +1415,12 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
                 );
               final todos = snapshot.data ?? [];
               final categorias =
-                  todos
+                  <String>{
+                    'Fútbol Senior', 'Femenino', 'Sub 40', 'Sub 12',
+                    ...todos
                       .map((j) => j['categoria']?.toString() ?? '')
-                      .where((c) => c.isNotEmpty)
-                      .toSet()
-                      .toList()
+                      .where((c) => c.isNotEmpty),
+                  }.toList()
                     ..sort();
               final seleccion = categorias.contains(_categoria)
                   ? _categoria
@@ -1496,15 +1511,40 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        _nombre(j),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                      Text(
-                                        'Cédula: ${j['cedula'] ?? ''} · ${j['categoria'] ?? ''} · ${j['posicion'] ?? ''}',
+                                      Row(
+                                        children: [
+                                          ClipOval(
+                                            child: SizedBox(
+                                              width: 56,
+                                              height: 56,
+                                              child: Image.network(
+                                                (j['foto_url']?.toString().trim().isNotEmpty ?? false)
+                                                    ? j['foto_url'].toString()
+                                                    : j['foto_perfil_url']?.toString() ?? '',
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (_, __, ___) => const Icon(Icons.person, size: 40),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  _nombre(j),
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'Cédula: ${j['cedula'] ?? ''} · ${j['categoria'] ?? ''} · ${j['posicion'] ?? ''}',
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                       const SizedBox(height: 8),
                                       Wrap(
