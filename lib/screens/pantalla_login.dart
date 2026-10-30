@@ -7,6 +7,7 @@ import 'pantalla_vocal.dart';
 import 'pantalla_calificaciones.dart';
 import 'pantalla_tecnica.dart';
 import 'pantalla_comision_sanciones.dart';
+import '../widgets/inicio_con_marca.dart';
 
 class PantallaLogin extends StatefulWidget {
   const PantallaLogin({super.key});
@@ -187,9 +188,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F4),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+      body: InicioConMarca(
           child: Container(
             constraints: const BoxConstraints(maxWidth: 420),
             child: Card(
@@ -333,7 +332,6 @@ class _PantallaLoginState extends State<PantallaLogin> {
               ),
             ),
           ),
-        ),
       ),
     );
   }
