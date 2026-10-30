@@ -1,5 +1,14 @@
 import 'package:flutter/material.dart';
 
+const encabezadoPanel = AppBarTheme(
+  backgroundColor: Color(0xFF4351BF),
+  foregroundColor: Colors.white,
+  centerTitle: true,
+  elevation: 0,
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(bottom: Radius.circular(18))),
+  titleTextStyle: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+);
+
 /// Presentación común de los paneles; no interviene en datos ni permisos.
 ThemeData temaLigaMaster() {
   const azul = Color(0xFF4351BF);
@@ -11,11 +20,7 @@ ThemeData temaLigaMaster() {
       seedColor: azul,
     ).copyWith(primary: azul, surface: superficie),
     scaffoldBackgroundColor: const Color(0xFFF2F2F5),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: azul,
-      foregroundColor: Colors.white,
-      centerTitle: true,
-    ),
+    appBarTheme: encabezadoPanel,
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: superficie,

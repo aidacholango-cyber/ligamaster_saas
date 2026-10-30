@@ -9,8 +9,10 @@ void main() {
     }
     expect(edadSub40(DateTime(1987, 12, 31), hoy: hoy), 39);
   });
-  test('rechaza 38 años y menores', () {
-    expect(errorEdadSub40(DateTime(1988, 1, 1), hoy: hoy), isNotNull);
+  test('permite inscribir la excepción de 38 y rechaza 37 o menos', () {
+    expect(errorEdadSub40(DateTime(1988, 1, 1), hoy: hoy), isNull);
+    expect(errorEdadSub40(DateTime(1988, 12, 31), hoy: hoy), isNull);
+    expect(errorEdadSub40(DateTime(1989, 1, 1), hoy: hoy), isNotNull);
     expect(errorEdadSub40(DateTime(2010, 2, 12), hoy: hoy), isNotNull);
   });
 }

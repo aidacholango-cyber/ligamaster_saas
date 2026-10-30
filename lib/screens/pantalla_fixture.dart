@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'pantalla_planilla_resultado.dart';
 import 'pantalla_vocal.dart';
+import 'pantalla_tecnica.dart';
+import 'pantalla_revision_sanciones.dart';
 
 const _azul = Color(0xFF4351BF);
 ButtonStyle _estiloAccion(Color color) => FilledButton.styleFrom(
@@ -594,6 +596,18 @@ class _PantallaFixtureState extends State<PantallaFixture>
                                     Text(
                                       'Cancha: ${p['cancha'] ?? 'Por definir'}',
                                     ),
+                                    if (p['equipo_vocal_id'] != null)
+                                      Text('Vocalía: ${_equipo(p['equipo_vocal_id'])}', style: const TextStyle(color: Color(0xFFBC1676), fontWeight: FontWeight.w600)),
+                                    TextButton.icon(
+                                      onPressed: _editable && !_confirmados.contains(p['id']) ? () => _dialogo(ProgramacionTecnicaDialog(
+                                        fase: _fase!,
+                                        equipos: [for (final e in _activos) {...e, 'equipo_id': e['id']}],
+                                        grupos: _gruposFase,
+                                        partido: p,
+                                      )) : null,
+                                      icon: const Icon(Icons.assignment_ind_outlined, color: Color(0xFFBC1676)),
+                                      label: const Text('Asignar vocalía'),
+                                    ),
                                     Text(
                                       _confirmados.contains(p['id'])
                                           ? 'Resultado: ${_marcadores[p['id'].toString()] ?? ''} · Confirmado'
@@ -668,6 +682,13 @@ class _PantallaFixtureState extends State<PantallaFixture>
                                           ));
                                           if (mounted) await _leer();
                                         },
+                                      ),
+                                    if (_confirmados.contains(p['id']))
+                                      FilledButton.icon(
+                                        style: _estiloAccion(const Color(0xFF925900)),
+                                        icon: const Icon(Icons.gavel, size: 17),
+                                        label: const Text('Revisar sanciones'),
+                                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PantallaRevisionSanciones(partidoId: p['id'].toString()))),
                                       ),
                                     if (_confirmados.contains(p['id']))
                                       FilledButton.icon(
@@ -1037,7 +1058,15 @@ class _PartidoDialogState extends State<_PartidoDialog> {
         keyboardType: TextInputType.number,
         decoration: const InputDecoration(labelText: 'Jornada'),
       ),
-      TextButton.icon(
+      FilledButton.icon(
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFFBC1676),
+          foregroundColor: Colors.white,
+          minimumSize: const Size(0, 46),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
         onPressed: _guardando ? null : _elegirFecha,
         icon: const Icon(Icons.calendar_month_outlined),
         label: Text(

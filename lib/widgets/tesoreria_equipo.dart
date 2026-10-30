@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/cobro_manual.dart';
+import 'revision_sanciones_tesoreria.dart';
 
 String _errorCobro(Object e) {
   if (e is PostgrestException) {
@@ -18,8 +19,10 @@ class TesoreriaEquipo extends StatefulWidget {
     super.key,
     required this.partidoId,
     required this.equipoId,
+    this.alCambiar,
   });
   final String partidoId, equipoId;
+  final VoidCallback? alCambiar;
   @override
   State<TesoreriaEquipo> createState() => _TesoreriaEquipoState();
 }
@@ -58,7 +61,10 @@ class _TesoreriaEquipoState extends State<TesoreriaEquipo> {
         datos: datos,
       ),
     );
-    if (mounted) setState(() => _carga = _leer());
+    if (mounted) {
+      setState(() { _carga = _leer(); });
+      widget.alCambiar?.call();
+    }
   }
 
   @override
@@ -67,7 +73,7 @@ class _TesoreriaEquipoState extends State<TesoreriaEquipo> {
     builder: (context, snapshot) {
       if (snapshot.hasError) {
         return TextButton.icon(
-          onPressed: () => setState(() => _carga = _leer()),
+          onPressed: () => setState(() { _carga = _leer(); }),
           icon: const Icon(Icons.refresh),
           label: Text(_errorCobro(snapshot.error!)),
         );
@@ -150,6 +156,8 @@ class _DetalleState extends State<_DetalleTesoreria> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (widget.datos['puede_editar'] == true)
+                RevisionSancionesTesoreria(partidoId: widget.partidoId, equipoId: widget.equipoId),
               if (publicado == null)
                 const Text(
                   'El administrador todavía no ha publicado los cobros de este partido.',

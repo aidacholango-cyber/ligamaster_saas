@@ -40,10 +40,15 @@ class _PantallaSancionesState extends State<PantallaSanciones>
   }
 
   Future<List<Map<String, dynamic>>> _leer() async {
-    final respuesta = await Supabase.instance.client.rpc(
-      'lm_leer_sanciones',
-      params: {'p_campeonato_id': widget.campeonato['id'].toString()},
-    );
+    dynamic respuesta;
+    try {
+      respuesta = await Supabase.instance.client.rpc('lm_leer_sanciones_revisadas',
+        params: {'p_campeonato_id': widget.campeonato['id'].toString()});
+    } on PostgrestException catch (e) {
+      if (e.code != 'PGRST202' && e.code != '42883') rethrow;
+      respuesta = await Supabase.instance.client.rpc('lm_leer_sanciones',
+        params: {'p_campeonato_id': widget.campeonato['id'].toString()});
+    }
     return List<Map<String, dynamic>>.from(respuesta as List);
   }
 

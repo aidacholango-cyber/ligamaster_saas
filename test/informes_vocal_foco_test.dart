@@ -1,3 +1,4 @@
+import 'fixtures/hoja_vocal_completa.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -35,30 +36,18 @@ void main() {
         httpClient: MockClient((request) async {
           Object respuesta = {};
           if (request.url.path.endsWith('lm_vocal_leer_planilla_controles')) {
-            respuesta = {
-              'editable': true,
-              'partido': {
-                'id': 'partido-prueba',
-                'local': 'BARCELONA',
-                'visitante': 'VISITANTE',
-                'equipo_local_id': 1,
-                'equipo_visitante_id': 2,
-                'fecha_hora': '2026-10-23T15:00:00Z',
-                'cancha': 'CANCHA 1',
-              },
-              'jugadores': [],
-              'borrador': {
-                'version': 0,
-                'vocal': 'VOCAL',
-                'arbitro': 'ARBITRO',
-                'jugadores': [],
-              },
-            };
+            respuesta = hojaVocalCompleta(partidoId: 'partido-prueba');
           } else if (request.url.path.endsWith(
-            'lm_vocal_guardar_planilla_firmas',
+            'lm_vocal_guardar_con_calificacion',
           )) {
             guardados.add(Map<String, dynamic>.from(jsonDecode(request.body)));
             respuesta = guardados.length;
+          } else if (request.url.path.endsWith('lm_vocal_regla_datos')) {
+            respuesta = {
+              'categoria': 'Fútbol Senior',
+              'calificacion_arbitro': 'bueno',
+              'nacimientos': {},
+            };
           } else if (request.url.path.endsWith('lm_tesoreria_leer')) {
             respuesta = {
               'equipo': 'EQUIPO',

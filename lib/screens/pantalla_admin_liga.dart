@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/dialogo_nuevo_responsable.dart';
 import '../widgets/imagen_cedula.dart';
 import 'pantalla_campeonatos.dart';
+import 'pantalla_tesoreria.dart';
 
 class PantallaAdminLiga extends StatelessWidget {
   const PantallaAdminLiga({super.key});
@@ -780,6 +781,16 @@ class __ContenidoAdminLigaState extends State<_ContenidoAdminLiga> {
                                   },
                             icon: const Icon(Icons.emoji_events_outlined),
                             label: const Text('Campeonatos'),
+                          ),
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF166534),
+                              foregroundColor: Colors.white),
+                            onPressed: _ligaId == null ? null : () => Navigator.push(
+                              context, MaterialPageRoute(builder: (_) =>
+                                PantallaTesoreria(ligaId: _ligaId!))),
+                            icon: const Icon(Icons.account_balance_wallet_outlined),
+                            label: const Text('Tesorería'),
                           ),
                           ElevatedButton.icon(
                             onPressed: _mostrarDialogoCrearEquipo,

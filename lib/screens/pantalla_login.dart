@@ -5,6 +5,8 @@ import 'pantalla_admin_liga.dart';
 import 'pantalla_delegado.dart';
 import 'pantalla_vocal.dart';
 import 'pantalla_calificaciones.dart';
+import 'pantalla_tecnica.dart';
+import 'pantalla_comision_sanciones.dart';
 
 class PantallaLogin extends StatefulWidget {
   const PantallaLogin({super.key});
@@ -26,6 +28,8 @@ class _PantallaLoginState extends State<PantallaLogin> {
     'Delegado del equipo',
     'Vocal',
     'Calificaciones',
+    'Comisión técnica',
+    'Penas y sanciones',
   ];
 
   @override
@@ -45,6 +49,10 @@ class _PantallaLoginState extends State<PantallaLogin> {
         : _rolSeleccionado == 'Calificaciones' &&
             usuarioIngresado.toLowerCase() == 'calificaciones2027'
         ? 'calificaciones2027@ligamaster.invalid'
+        : _rolSeleccionado == 'Comisión técnica' && usuarioIngresado.toLowerCase() == 'tecnica2027'
+        ? 'tecnica2027@ligamaster.invalid'
+        : _rolSeleccionado == 'Penas y sanciones' && usuarioIngresado.toLowerCase() == 'sanciones2027'
+        ? 'sanciones2027@ligamaster.invalid'
         : usuarioIngresado;
     final password = _passwordController.text;
     final rolElegido = _rolSeleccionado;
@@ -54,6 +62,8 @@ class _PantallaLoginState extends State<PantallaLogin> {
       'Delegado del equipo': 'club',
       'Vocal': 'vocal',
       'Calificaciones': 'calificaciones',
+      'Comisión técnica': 'tecnica',
+      'Penas y sanciones': 'penas',
     };
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -86,7 +96,15 @@ class _PantallaLoginState extends State<PantallaLogin> {
       if (rolElegido == 'Calificaciones' && !comisionActiva) {
         throw StateError('Esta cuenta todavía no está habilitada para calificaciones.');
       }
-      final rol = comisionActiva ? 'calificaciones'
+      final tecnicaActiva = rolElegido == 'Comisión técnica' && await db.rpc('lm_es_comision_tecnica') == true;
+      if (rolElegido == 'Comisión técnica' && !tecnicaActiva) {
+        throw StateError('Esta cuenta todavía no está habilitada para la comisión técnica.');
+      }
+      final penasActiva = rolElegido == 'Penas y sanciones' && await db.rpc('lm_es_comision_penas') == true;
+      if (rolElegido == 'Penas y sanciones' && !penasActiva) {
+        throw StateError('Esta cuenta todavía no está habilitada para penas y sanciones.');
+      }
+      final rol = penasActiva ? 'penas' : tecnicaActiva ? 'tecnica' : comisionActiva ? 'calificaciones'
           : vocalActivo ? 'vocal' : perfil?['rol']?.toString();
       if (rol == null || !roles.values.contains(rol)) {
         throw StateError(
@@ -114,6 +132,10 @@ class _PantallaLoginState extends State<PantallaLogin> {
         destino = const PantallaVocal();
       } else if (rol == 'calificaciones') {
         destino = const PantallaCalificaciones();
+      } else if (rol == 'tecnica') {
+        destino = const PantallaTecnica();
+      } else if (rol == 'penas') {
+        destino = const PantallaComisionSanciones();
       } else {
         final equipos = await db
             .from('equipos')
@@ -249,7 +271,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
-        labelText: (_rolSeleccionado == 'Vocal' || _rolSeleccionado == 'Calificaciones')
+        labelText: (_rolSeleccionado == 'Vocal' || _rolSeleccionado == 'Calificaciones' || _rolSeleccionado == 'Comisión técnica' || _rolSeleccionado == 'Penas y sanciones')
                             ? 'Usuario o correo'
                             : 'Correo electrónico',
                         prefixIcon: Icon(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/pantalla_login.dart';
+import 'widgets/estilo_panel.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,6 +37,7 @@ class MiApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
+        appBarTheme: encabezadoPanel,
       ),
       initialRoute: '/',
       routes: {

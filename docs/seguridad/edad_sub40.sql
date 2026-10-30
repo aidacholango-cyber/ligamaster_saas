@@ -26,8 +26,8 @@ begin
     raise exception 'Escribe una fecha de nacimiento válida.';
   end if;
   edad:=extract(year from current_date)::integer-extract(year from nacimiento)::integer;
-  if edad<39 then
-    raise exception 'No puede ingresar en Sub 40: tiene % años por año de nacimiento. El mínimo es 39 años.',edad;
+  if edad<38 then
+    raise exception 'No puede ingresar en Sub 40: tiene % años por año de nacimiento. Se admiten desde 39 años y la excepción de 38 años.',edad;
   end if;
   return new;
 end; $$;

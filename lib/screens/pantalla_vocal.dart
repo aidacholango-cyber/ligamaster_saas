@@ -5,8 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/estilo_panel.dart';
 import '../models/jugador_vocal.dart';
+import '../models/regla_juvenil.dart';
+import '../models/planilla_vocal_completa.dart';
 import '../widgets/tesoreria_equipo.dart';
+import '../widgets/cobranza_vocal.dart';
 import '../widgets/firma_dedo.dart';
+import '../widgets/calificacion_arbitro.dart';
 import 'pantalla_login.dart';
 
 String _fechaVocal(DateTime d) =>
@@ -22,7 +26,10 @@ String _falloVocal(Object e) {
   if (e is PostgrestException) {
     if (e.code == 'PGRST202' || e.code == '42883')
       return 'Falta instalar el módulo del vocal en Supabase.';
-    return e.message;
+    return e.message.replaceFirst(
+      'Escribe los nombres del vocal y del árbitro (máximo 150 caracteres).',
+      'Escribe los nombres del vocal y del árbitro.',
+    );
   }
   return 'No se pudo completar la operación. Revisa tu conexión e intenta nuevamente.';
 }
@@ -95,6 +102,16 @@ class _PantallaVocalState extends State<PantallaVocal> {
       helpText: 'Selecciona la fecha del partido',
       confirmText: 'Siguiente',
       cancelText: 'Cancelar',
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF166534)),
+          datePickerTheme: const DatePickerThemeData(
+            backgroundColor: Colors.white,
+            headerBackgroundColor: Color(0xFFBE1176),
+            headerForegroundColor: Colors.white,
+            todayForegroundColor: WidgetStatePropertyAll(Color(0xFF1D4DE2)),
+            todayBorder: BorderSide(color: Color(0xFF1D4DE2)),
+          )), child: child!),
     );
     if (fecha == null || !mounted) return;
     setState(() {
@@ -144,6 +161,9 @@ class _PantallaVocalState extends State<PantallaVocal> {
                 const _MarcaVocal(),
                 const SizedBox(height: 24),
                 Card(
+                  color: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20),
+                    side: const BorderSide(color: Color(0xFFB6DCC7))),
                   child: Padding(
                     padding: const EdgeInsets.all(24),
                     child: Column(
@@ -153,6 +173,7 @@ class _PantallaVocalState extends State<PantallaVocal> {
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
+                            color: Color(0xFF166534),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -160,6 +181,7 @@ class _PantallaVocalState extends State<PantallaVocal> {
                           const Text('Selecciona la fecha para continuar.'),
                           const SizedBox(height: 16),
                           ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFBE1176), foregroundColor: Colors.white),
                             onPressed: _cargando ? null : _elegirFecha,
                             icon: const Icon(Icons.calendar_month),
                             label: Text(
@@ -189,6 +211,7 @@ class _PantallaVocalState extends State<PantallaVocal> {
                             const Text('Selecciona la cancha'),
                             const SizedBox(height: 16),
                             ControlCentrado(
+                              ancho: 360,
                               child: DropdownButtonFormField<String>(
                                 initialValue: _cancha,
                                 isExpanded: true,
@@ -196,6 +219,8 @@ class _PantallaVocalState extends State<PantallaVocal> {
                                   labelText: 'Cancha',
                                   border: OutlineInputBorder(),
                                   prefixIcon: Icon(Icons.sports_soccer),
+                                  filled: true, fillColor: Color(0xFFEAF5EE),
+                                  labelStyle: TextStyle(color: Color(0xFF166534)),
                                 ),
                                 hint: const Text('Selecciona una cancha'),
                                 items: [
@@ -213,6 +238,7 @@ class _PantallaVocalState extends State<PantallaVocal> {
                             ),
                             const SizedBox(height: 12),
                             ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF166534), foregroundColor: Colors.white),
                               onPressed: _cancha == null
                                   ? null
                                   : () => setState(() => _paso = 2),
@@ -239,8 +265,8 @@ class _PantallaVocalState extends State<PantallaVocal> {
                                       ),
                                       child: Card(
                                         color: _partidoId == p['id'].toString()
-                                            ? const Color(0xFFE8E9FF)
-                                            : null,
+                                            ? const Color(0xFFDCFCE7)
+                                            : const Color(0xFFEFF4FF),
                                         child: ListTile(
                                           leading: Icon(
                                             _partidoId == p['id'].toString()
@@ -268,6 +294,7 @@ class _PantallaVocalState extends State<PantallaVocal> {
                             ),
                             const SizedBox(height: 12),
                             ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFBE1176), foregroundColor: Colors.white),
                               icon: const Icon(Icons.save_outlined),
                               label: const Text('Guardar'),
                               onPressed: _partidoId == null
@@ -313,7 +340,9 @@ class _PantallaVocalState extends State<PantallaVocal> {
 
 class PlanillaVocal extends StatefulWidget {
   const PlanillaVocal({super.key, required this.partidoId, this.soloLectura = false,
-    this.edicionAdministrador = false});
+    this.edicionAdministrador = false, this.consultaSanciones = false})
+      : assert(!consultaSanciones || soloLectura);
+  final bool consultaSanciones;
   final bool soloLectura;
   final bool edicionAdministrador;
   final String partidoId;
@@ -322,6 +351,7 @@ class PlanillaVocal extends StatefulWidget {
 }
 
 class _PlanillaVocalState extends State<PlanillaVocal> {
+  String? _equipoVocalAsignado;
   Timer? _autoguardado;
   bool _autoSuspendido = false, _confirmando = false;
   String? _errorSincronizacion;
@@ -343,6 +373,27 @@ class _PlanillaVocalState extends State<PlanillaVocal> {
       _sucio = false,
       _permitirSalir = false;
   int _version = 0;
+  String? _calificacionArbitro;
+  List<String> get _faltantesHoja => faltantesPlanillaVocal(
+    vocal: _vocal.text, arbitro: _arbitro.text,
+    informeVocal: _informeVocal.text, informeArbitral: _informeArbitral.text,
+    calificacion: _calificacionArbitro, cancha: '${_datos?['partido']?['cancha'] ?? ''}',
+    equipos: {for (final lado in ['local', 'visitante'])
+      '${_datos?['partido']?['equipo_${lado}_id']}': '${_datos?['partido']?[lado] ?? lado}'},
+    controles: _controlesEquipo,
+    equiposConJugadores: {for (final j in _jugadores)
+      if (_filas.containsKey(j['id'].toString())) j['equipo_id'].toString()},
+    firmas: {for (final f in _firmas.entries) f.key: f.value.any((trazo) => trazo.length >= 2)},
+  );
+  bool get _hojaCompleta => widget.edicionAdministrador || _faltantesHoja.isEmpty;
+  Future<void> _mostrarFaltantes() => showDialog<void>(context: context,
+    builder: (ctx) => AlertDialog(title: const Text('Completa la hoja antes de guardar'),
+      content: SingleChildScrollView(child: Text(_faltantesHoja.map((f) => '• $f').join('\n'))),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Volver a la hoja'))]));
+  String? _validarJuvenil([List<Map<String, dynamic>>? filas]) => validarReglaJuvenil(
+    categoria: _datos?['categoria']?.toString() ?? '',
+    fecha: fechaReglaJuvenil(_datos?['partido']?['fecha_hora']),
+    jugadores: _jugadores, filas: filas ?? _filas.values.toList());
   String? _error;
   bool get _editable => !widget.soloLectura && _datos?['editable'] == true && !_guardando;
   bool get _informesEditables => !widget.soloLectura && _datos?['editable'] == true &&
@@ -358,6 +409,7 @@ class _PlanillaVocalState extends State<PlanillaVocal> {
     _autoguardado = Timer.periodic(const Duration(seconds: 3), (_) {
       if (mounted &&
           _editable &&
+          _hojaCompleta &&
           !_confirmando &&
           !_firmando &&
           !_escribiendo &&
@@ -393,11 +445,27 @@ class _PlanillaVocalState extends State<PlanillaVocal> {
     try {
       final datos = Map<String, dynamic>.from(
         await Supabase.instance.client.rpc(
-          widget.soloLectura ? 'lm_hoja_vocalia_leer' : widget.edicionAdministrador
+          widget.consultaSanciones ? 'lm_penas_hoja_leer' : widget.soloLectura ? 'lm_hoja_vocalia_leer' : widget.edicionAdministrador
               ? 'lm_admin_hoja_vocalia_leer' : 'lm_vocal_leer_planilla_controles',
           params: {'p_partido_id': widget.partidoId},
         ),
       );
+      final regla = widget.consultaSanciones ? datos : Map<String, dynamic>.from(await Supabase.instance.client.rpc(
+        'lm_vocal_regla_datos', params: {'p_partido_id': widget.partidoId}));
+      String? equipoVocal;
+      try {
+        final turno = widget.consultaSanciones ? datos['turno_vocalia'] : await Supabase.instance.client.rpc('lm_turno_vocalia',
+          params: {'p_partido_id': widget.partidoId});
+        final nombre = turno is Map ? turno['equipo']?.toString().trim() : null;
+        if (nombre != null && nombre.isNotEmpty) equipoVocal = nombre;
+      } on PostgrestException catch (e) {
+        if (e.code != 'PGRST202' && e.code != '42883') rethrow;
+      }
+      datos['categoria'] = regla['categoria'];
+      _calificacionArbitro = regla['calificacion_arbitro']?.toString();
+      final nacimientos = regla['nacimientos'] as Map? ?? {};
+      datos['jugadores'] = [for (final j in datos['jugadores'] as List)
+        {...Map<String, dynamic>.from(j), 'fecha_nacimiento': nacimientos[j['id'].toString()] ?? j['fecha_nacimiento']}];
       if (!mounted) return;
       final borrador = datos['borrador'] as Map?;
       _firmas.clear();
@@ -414,7 +482,10 @@ class _PlanillaVocalState extends State<PlanillaVocal> {
           _controlesEquipo[entrada.key.toString()] = Map<String, dynamic>.from(entrada.value as Map);
         }
       }
-      _vocal.text = (borrador?['vocal'] ?? '').toString();
+      _equipoVocalAsignado = equipoVocal;
+      final vocalGuardado = (borrador?['vocal'] ?? '').toString();
+      _vocal.text = equipoVocal != null && (!widget.soloLectura || vocalGuardado.trim().isEmpty)
+          ? 'VOCAL $equipoVocal' : vocalGuardado;
       _arbitro.text = (borrador?['arbitro'] ?? '').toString();
       _informeArbitral.text = (borrador?['informe_arbitral'] ?? '').toString();
       _informeVocal.text = (borrador?['informe_vocal'] ?? '').toString();
@@ -465,6 +536,10 @@ class _PlanillaVocalState extends State<PlanillaVocal> {
 
   Future<void> _finalizar() async {
     if (!_editable || _firmando || !_form.currentState!.validate()) return;
+    if (!_hojaCompleta) {
+      await _mostrarFaltantes();
+      return;
+    }
     _confirmando = true;
     final confirmar = await showDialog<bool>(
       context: context,
@@ -494,6 +569,15 @@ class _PlanillaVocalState extends State<PlanillaVocal> {
     bool finalizar = false,
   }) async {
     if (!_editable || _firmando || !_form.currentState!.validate()) return;
+    if (!_hojaCompleta) {
+      if (!automatico) await _mostrarFaltantes();
+      return;
+    }
+    final errorJuvenil = _validarJuvenil();
+    if (errorJuvenil != null) {
+      if (!automatico) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorJuvenil)));
+      return;
+    }
     final informeVocalEnviado = _informeVocal.text.trim();
     final informeArbitralEnviado = _informeArbitral.text.trim();
     setState(() {
@@ -502,7 +586,9 @@ class _PlanillaVocalState extends State<PlanillaVocal> {
     });
     try {
       final version = await Supabase.instance.client.rpc(
-        widget.edicionAdministrador ? 'lm_admin_vocal_guardar_planilla_firmas'
+        !widget.edicionAdministrador && _calificacionArbitro != null
+            ? 'lm_vocal_guardar_con_calificacion'
+            : widget.edicionAdministrador ? 'lm_admin_vocal_guardar_planilla_firmas'
             : 'lm_vocal_guardar_planilla_firmas',
         params: {
           'p_partido_id': widget.partidoId,
@@ -515,6 +601,8 @@ class _PlanillaVocalState extends State<PlanillaVocal> {
           'p_informe_arbitral': informeArbitralEnviado,
           'p_informe_vocal': informeVocalEnviado,
           'p_firmas': {for (final f in _firmas.entries) f.key: guardarFirma(f.value)},
+          if (!widget.edicionAdministrador && _calificacionArbitro != null)
+            'p_calificacion': _calificacionArbitro,
         },
       );
       if (!mounted) return;
@@ -537,6 +625,7 @@ class _PlanillaVocalState extends State<PlanillaVocal> {
           ),
         );
       }
+
     } catch (e) {
       if (automatico) {
         if (mounted)
@@ -560,6 +649,7 @@ class _PlanillaVocalState extends State<PlanillaVocal> {
             ],
           ),
         );
+      return;
     } finally {
       if (mounted) setState(() {
         _guardando = false;
@@ -585,6 +675,10 @@ class _PlanillaVocalState extends State<PlanillaVocal> {
         jugadores: _jugadores.where((j) => j['equipo_id'] == equipoId).toList(),
         agregados: _filas.keys.toSet(),
         limite: (cambio ? 6 : 11) - cantidad,
+        validarIngreso: cambio ? null : (elegido) => _validarJuvenil([
+          ..._filas.values,
+          {'id': elegido['id'], 'tipo': 'titular'},
+        ]),
         alIngresar: (elegido) {
           if (!mounted) return;
           setState(() {
@@ -628,7 +722,7 @@ SingleChildScrollView(
                 width: 420,
                 child: DataTable(
                 dataTextStyle: const TextStyle(fontSize: 12, color: Colors.black, fontWeight: FontWeight.normal),
-                headingTextStyle: const TextStyle(fontSize: 12, color: Colors.black, fontWeight: FontWeight.normal),
+                headingTextStyle: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold),
                 headingRowHeight: 36,
                 dataRowMinHeight: 40,
                 dataRowMaxHeight: 40,
@@ -636,7 +730,7 @@ SingleChildScrollView(
                 dividerThickness: 0,
                 horizontalMargin: 4,
                 columnSpacing: 8,
-                headingRowColor: const WidgetStatePropertyAll(Color(0xFFD9EFE2)),
+                headingRowColor: WidgetStatePropertyAll(color),
                 dataRowColor: const WidgetStatePropertyAll(Colors.white),
                 columns: [
                   if (cambio) const DataColumn(
@@ -825,6 +919,11 @@ SingleChildScrollView(
               children: [
                 for (final opcion in const {'balon': 'Balón', 'capitan': 'Capitán', 'camerinos': 'Camerinos'}.entries)
                   TextButton(
+                    style: TextButton.styleFrom(
+                      backgroundColor: (opcion.key == 'balon' ? const Color(0xFF1D4DE2)
+                        : opcion.key == 'capitan' ? const Color(0xFFBE1176)
+                        : const Color(0xFF925900)).withValues(alpha: 0.08),
+                    ),
                     onPressed: !_editable ? null : () => setState(() {
                       final controles = _controlesEquipo.putIfAbsent(equipoId.toString(), () => {});
                       controles[opcion.key] = controles[opcion.key] != true;
@@ -936,7 +1035,11 @@ SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(children: [
                   _tablaEquipo(equipoId, jugadores, color, true),
-                  TesoreriaEquipo(partidoId: widget.partidoId, equipoId: equipoId.toString()),
+                  if (!widget.consultaSanciones)
+                    TesoreriaEquipo(partidoId: widget.partidoId, equipoId: equipoId.toString()),
+                  if (!widget.soloLectura && !widget.edicionAdministrador)
+                    CobranzaVocal(partidoId: widget.partidoId, equipoId: (equipoId as num).toInt(),
+                      habilitado: _datos?['editable'] == true),
                 ]),
               ),
             ),
@@ -989,6 +1092,7 @@ SingleChildScrollView(
                               Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Expanded(child: TextFormField(
                                   controller: _vocal, focusNode: _focoVocal, enabled: _editable, maxLength: 150,
+                                  readOnly: _equipoVocalAsignado != null,
                                   decoration: const InputDecoration(labelText: 'Vocal',
                                     prefixIcon: Icon(Icons.person_outline), counterText: ''),
                                   validator: (v) => (v ?? '').trim().isEmpty ? 'Escribe el nombre del vocal.' : null,
@@ -1026,6 +1130,12 @@ SingleChildScrollView(
                             ]),
                           ),
                           const SizedBox(height: 16),
+                          CalificacionArbitro(valor: _calificacionArbitro,
+                            editable: _editable && !widget.edicionAdministrador,
+                            alCambiar: (valor) => setState(() {
+                              _calificacionArbitro = valor; _sucio = true;
+                            })),
+                          const SizedBox(height: 12),
                           Text(
                             'Cancha: ${partido!['cancha'] ?? 'Sin cancha'}',
                             textAlign: TextAlign.center,
@@ -1089,7 +1199,7 @@ SingleChildScrollView(
                           ),
                           const SizedBox(height: 20),
                           const Text(
-                            'TA: tarjeta amarilla · TR: tarjeta roja\nGuardado automático durante el partido. Al terminar, publica el resultado oficial.',
+                            'TA: tarjeta amarilla · TR: tarjeta roja\nCompleta los datos obligatorios, controles y firmas para guardar. Al terminar, publica el resultado oficial.',
                             textAlign: TextAlign.center,
                           ),
                           if (_errorSincronizacion != null)
@@ -1101,7 +1211,7 @@ SingleChildScrollView(
                           const SizedBox(height: 12),
                           Center(
                             child: ElevatedButton.icon(
-                              onPressed: _editable ? _finalizar : null,
+                              onPressed: _editable && _hojaCompleta ? _finalizar : null,
                               icon: const Icon(Icons.sports_score),
                               label: const Text('Terminar partido y publicar'),
                             ),
@@ -1109,7 +1219,7 @@ SingleChildScrollView(
                           const SizedBox(height: 16),
                           Center(
                             child: ElevatedButton.icon(
-                              onPressed: _editable ? _guardar : null,
+                              onPressed: _editable && _hojaCompleta ? _guardar : null,
                               icon: _guardando
                                   ? const SizedBox(
                                       width: 18,
@@ -1160,11 +1270,12 @@ class _MarcaVocal extends StatelessWidget {
 
 class _BuscarCamiseta extends StatefulWidget {
   const _BuscarCamiseta({required this.jugadores, required this.agregados,
-    this.alIngresar, this.limite = 1});
+    this.alIngresar, this.limite = 1, this.validarIngreso});
   final List<Map<String, dynamic>> jugadores;
   final Set<String> agregados;
   final ValueChanged<Map<String, dynamic>>? alIngresar;
   final int limite;
+  final String? Function(Map<String, dynamic>)? validarIngreso;
   @override
   State<_BuscarCamiseta> createState() => _BuscarCamisetaState();
 }
@@ -1180,7 +1291,8 @@ class _BuscarCamisetaState extends State<_BuscarCamiseta> {
   List<Map<String, dynamic>> get _coincidencias => buscarCamisetaVocal(widget.jugadores, _numero.text);
   Map<String, dynamic>? get _elegido => _seleccion ?? (_coincidencias.length == 1 ? _coincidencias.first : null);
   bool get _valido => _elegido != null && _elegido!['habilitado'] == true &&
-    !_agregados.contains(_elegido!['id'].toString()) && _ingresados < widget.limite;
+    !_agregados.contains(_elegido!['id'].toString()) && _ingresados < widget.limite &&
+    widget.validarIngreso?.call(_elegido!) == null;
   void _cambiar(String valor) {
     setState(() { _numero.text = valor; _seleccion = null; _aviso = null; });
   }
@@ -1256,6 +1368,9 @@ class _BuscarCamisetaState extends State<_BuscarCamiseta> {
               style: const TextStyle(fontWeight: FontWeight.bold)),
             if (elegido['habilitado'] != true) const Text('No está inscrito y calificado para jugar.'),
             if (_agregados.contains(elegido['id'].toString())) const Text('Ya ingresado'),
+            if (widget.validarIngreso?.call(elegido) != null)
+              Text(widget.validarIngreso!(elegido)!, textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFFB82018))),
           ],
           const SizedBox(height: 8),
           for (final fila in const [['1','2','3'], ['4','5','6'], ['7','8','9'], ['C','0','⌫']])

@@ -2248,9 +2248,11 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Center(
-                      child: _LigaBrand(subtitle: 'Panel Superadministrador'),
-                    ),
+                    Center(child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      decoration: BoxDecoration(color: const Color(0xFFE2F2E8), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF166534))),
+                      child: const _LigaBrand(subtitle: 'Panel Superadministrador'),
+                    )),
                     const SizedBox(height: 24),
                     Wrap(
                       alignment: WrapAlignment.center,
