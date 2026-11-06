@@ -94,10 +94,6 @@ class _RevisionSancionesTesoreriaState
               ),
             if ((notas.equipos[widget.equipoId] ?? '').isNotEmpty)
               Text(notas.equipos[widget.equipoId]!),
-            if (notas.general.isNotEmpty)
-              Text(
-                'Observación anterior sin equipo asignado: ${notas.general}',
-              ),
             for (final j in filas)
               Text(
                 'N.º ${j['camiseta'] ?? '—'} · ${j['nombre']} · T.A. ${j['ta']} · T.R. ${j['tr'] == true ? 'Sí' : 'No'}${j['suspension_manual'] == null ? '' : ' · Suspensión manual: ${j['suspension_manual']} partidos'}',

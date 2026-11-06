@@ -90,7 +90,10 @@ void main() {
         } else if (request.url.path.endsWith('lm_penas_envio_tesoreria')) {
           final equipo = jsonDecode(request.body)['p_equipo_id'] as int;
           consultasPenas.add(equipo);
-          datos = {'revision': 2, 'observaciones': 'REVISIÓN DEL EQUIPO $equipo', 'jugadores': []};
+          datos = {'revision': 2, 'observaciones': jsonEncode({
+            'formato': 'penas_equipos_v1', 'general': 'NOTA ANTIGUA INCORRECTA',
+            'equipos': {'$equipo': 'REVISIÓN DEL EQUIPO $equipo'},
+          }), 'jugadores': []};
         } else if (request.url.path.endsWith(
           'lm_tesoreria_registrar_movimiento',
         )) {
@@ -151,6 +154,7 @@ void main() {
     expect(consultasPenas, isEmpty);
     await tester.tap(find.text('Penas y sanciones')); await cargar();
     expect(find.textContaining('REVISIÓN DEL EQUIPO 12'), findsOneWidget);
+    expect(find.textContaining('NOTA ANTIGUA INCORRECTA'), findsNothing);
     expect(consultasPenas, [12]);
     await tester.tap(find.text('Cerrar')); await tester.pumpAndSettle();
     expect(find.textContaining('REVISIÓN DEL EQUIPO 12'), findsNothing);
