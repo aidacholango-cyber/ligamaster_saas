@@ -7,6 +7,7 @@ import 'pantalla_vocal.dart';
 import 'pantalla_calificaciones.dart';
 import 'pantalla_tecnica.dart';
 import 'pantalla_comision_sanciones.dart';
+import 'pantalla_acceso_tesoreria.dart';
 import '../widgets/inicio_con_marca.dart';
 
 class PantallaLogin extends StatefulWidget {
@@ -31,6 +32,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
     'Calificaciones',
     'Comisión técnica',
     'Penas y sanciones',
+    'Tesorería',
   ];
 
   @override
@@ -54,6 +56,8 @@ class _PantallaLoginState extends State<PantallaLogin> {
         ? 'tecnica2027@ligamaster.invalid'
         : _rolSeleccionado == 'Penas y sanciones' && usuarioIngresado.toLowerCase() == 'sanciones2027'
         ? 'sanciones2027@ligamaster.invalid'
+        : _rolSeleccionado == 'Tesorería' && usuarioIngresado.toLowerCase() == 'tesoreria2027'
+        ? 'tesoreria2027@ligamaster.invalid'
         : usuarioIngresado;
     final password = _passwordController.text;
     final rolElegido = _rolSeleccionado;
@@ -65,6 +69,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
       'Calificaciones': 'calificaciones',
       'Comisión técnica': 'tecnica',
       'Penas y sanciones': 'penas',
+      'Tesorería': 'tesoreria',
     };
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -105,7 +110,11 @@ class _PantallaLoginState extends State<PantallaLogin> {
       if (rolElegido == 'Penas y sanciones' && !penasActiva) {
         throw StateError('Esta cuenta todavía no está habilitada para penas y sanciones.');
       }
-      final rol = penasActiva ? 'penas' : tecnicaActiva ? 'tecnica' : comisionActiva ? 'calificaciones'
+      final tesoreriaActiva = rolElegido == 'Tesorería' && await db.rpc('lm_es_tesoreria') == true;
+      if (rolElegido == 'Tesorería' && !tesoreriaActiva) {
+        throw StateError('Esta cuenta todavía no está habilitada para Tesorería.');
+      }
+      final rol = tesoreriaActiva ? 'tesoreria' : penasActiva ? 'penas' : tecnicaActiva ? 'tecnica' : comisionActiva ? 'calificaciones'
           : vocalActivo ? 'vocal' : perfil?['rol']?.toString();
       if (rol == null || !roles.values.contains(rol)) {
         throw StateError(
@@ -137,6 +146,8 @@ class _PantallaLoginState extends State<PantallaLogin> {
         destino = const PantallaTecnica();
       } else if (rol == 'penas') {
         destino = const PantallaComisionSanciones();
+      } else if (rol == 'tesoreria') {
+        destino = const PantallaAccesoTesoreria();
       } else {
         final equipos = await db
             .from('equipos')
@@ -162,6 +173,9 @@ class _PantallaLoginState extends State<PantallaLogin> {
       await db.auth.signOut(scope: SignOutScope.local);
     } on PostgrestException catch (e) {
       error =
+          rolElegido == 'Tesorería' && (e.code == 'PGRST202' || e.code == '42883')
+          ? 'Falta instalar el rol de Tesorería en Supabase.'
+          :
           rolElegido == 'Vocal' && (e.code == 'PGRST202' || e.code == '42883')
           ? 'Falta instalar el módulo del vocal en Supabase.'
           : 'No se pudo verificar el permiso de la cuenta.';
@@ -276,7 +290,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
-        labelText: (_rolSeleccionado == 'Vocal' || _rolSeleccionado == 'Calificaciones' || _rolSeleccionado == 'Comisión técnica' || _rolSeleccionado == 'Penas y sanciones')
+        labelText: (_rolSeleccionado == 'Vocal' || _rolSeleccionado == 'Calificaciones' || _rolSeleccionado == 'Comisión técnica' || _rolSeleccionado == 'Penas y sanciones' || _rolSeleccionado == 'Tesorería')
                             ? 'Usuario o correo'
                             : 'Correo electrónico',
                         prefixIcon: Icon(

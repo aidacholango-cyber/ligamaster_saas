@@ -9,8 +9,9 @@ import '../models/estado_cuenta.dart';
 import '../services/imprimir_tesoreria.dart';
 
 class PantallaTesoreria extends StatefulWidget {
-  const PantallaTesoreria({super.key, required this.ligaId});
+  const PantallaTesoreria({super.key, required this.ligaId, this.accesoTesoreria = false});
   final String ligaId;
+  final bool accesoTesoreria;
   @override
   State<PantallaTesoreria> createState() => _PantallaTesoreriaState();
 }
@@ -34,10 +35,13 @@ class _PantallaTesoreriaState extends State<PantallaTesoreria> {
   Future<Map<String, dynamic>> _leerCatalogo() async {
     final datos = Map<String, dynamic>.from(
       await _db.rpc(
-        'lm_tesoreria_catalogo',
+        widget.accesoTesoreria ? 'lm_tesoreria_operador_catalogo' : 'lm_tesoreria_catalogo',
         params: {'p_liga_id': widget.ligaId},
       ),
     );
+    // El rol independiente recibe los grupos desde el RPC autorizado,
+    // sin ampliar los permisos directos sobre campeonatos.
+    if (widget.accesoTesoreria) return datos;
     final grupos = await _db
         .from('campeonatos')
         .select('id,grupo_campeonato_id')
@@ -306,6 +310,8 @@ class _PantallaTesoreriaState extends State<PantallaTesoreria> {
                 'Total de este equipo: ${cobro['moneda']} ${dineroTesoreria(totalCobro(List<Map<String, dynamic>>.from(cobro['items'] as List)))}',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
+            if (editable && cobro != null && widget.accesoTesoreria)
+              TesoreriaEquipo(partidoId: '${partido['partido_id']}', equipoId: '$_equipo', alCambiar: _cargar),
             if (editable && cobro != null)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 10),
