@@ -82,6 +82,7 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
     }
     if (_equipoObservacion == null) return;
     _notas.equipos[_equipoObservacion!] = _observaciones.text.trim();
+    _notas.general = '';
     final observaciones = _notas.guardar();
     if (observaciones.length > 4000) {
       setState(
@@ -468,21 +469,14 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
                               }),
                       ),
                       const SizedBox(height: 12),
-                      if (_notas.general.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Text(
-                            'Observación anterior sin equipo asignado: ${_notas.general}',
-                          ),
-                        ),
                       TextField(
                         controller: _observaciones,
                         enabled: !_guardando,
                         maxLength: 4000,
                         maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'Motivo u observaciones',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: 'Motivo u observaciones · ${_equiposObservacion[_equipoObservacion] ?? 'Selecciona un equipo'}',
+                          border: const OutlineInputBorder(),
                         ),
                         onChanged: (_) => _cambiar(() {}),
                       ),
