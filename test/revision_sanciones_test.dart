@@ -26,7 +26,10 @@ void main() {
           expect(p['p_revision'], revision);
           expect(p['p_origen'], 'origen-original');
           expect(p['p_enviar'], isTrue);
-          expect(p['p_observaciones'], 'Revisado con la hoja');
+          expect(jsonDecode(p['p_observaciones']), {
+            'formato': 'penas_equipos_v1', 'general': '',
+            'equipos': {'1': 'Revisado con la hoja', '2': 'Observación solo del visitante'},
+          });
           expect(p['p_correcciones'], [{'id': 'j1', 'ta': 2, 'tr': false, 'suspension_manual': 3}]);
           expect(request.body.contains('centavos'), isFalse);
           expect(request.body.contains('moneda'), isFalse);
@@ -36,6 +39,8 @@ void main() {
           datos = {'revision': revision, 'origen': 'origen-original', 'observaciones': '', 'jugadores': [
             {'id': 'j1', 'equipo_id': 1, 'equipo': 'EQUIPO', 'nombre': 'JUGADOR', 'camiseta': 7,
               'participo': true, 'ta_original': 1, 'tr_original': false, 'ta': manual ? 2 : 1, 'tr': false, 'manual': manual, 'suspension_manual': null},
+            {'id': 'j2', 'equipo_id': 2, 'equipo': 'VISITANTE', 'nombre': 'OTRO JUGADOR', 'camiseta': 8,
+              'participo': true, 'ta_original': 0, 'tr_original': false, 'ta': 0, 'tr': false, 'manual': false, 'suspension_manual': null},
           ]};
         }
         return http.Response(jsonEncode(datos), 200, request: request, headers: {'content-type': 'application/json'});
@@ -50,7 +55,7 @@ void main() {
     await tester.tap(find.text('Enviar a Tesorería')); await tester.pump();
     expect(find.text('Escribe el motivo o las observaciones de la revisión.'), findsOneWidget);
     expect(guardados, 0);
-    await tester.tap(find.byType(SwitchListTile)); await tester.pumpAndSettle();
+    await tester.tap(find.byType(SwitchListTile).first); await tester.pumpAndSettle();
     expect(find.text('Suspensión automática'), findsOneWidget);
     await tester.tap(find.byType(DropdownButtonFormField<int>)); await tester.pumpAndSettle();
     await tester.tap(find.text('2').last); await tester.pumpAndSettle();
@@ -60,6 +65,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300)); await tester.pumpAndSettle();
     expect(find.text('Suspensión: 3 partidos'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'Revisado con la hoja');
+    await tester.tap(find.byType(DropdownButtonFormField<String>)); await tester.pumpAndSettle();
+    await tester.tap(find.text('VISITANTE').last); await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextField, 'Revisado con la hoja'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'Observación solo del visitante');
+    await tester.tap(find.byType(DropdownButtonFormField<String>)); await tester.pumpAndSettle();
+    await tester.tap(find.text('EQUIPO').last); await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextField, 'Revisado con la hoja'), findsOneWidget);
     await tester.tap(find.text('Enviar a Tesorería')); await cargar(); await cargar();
     expect(guardados, 1);
     expect(find.text('Revisión enviada a Tesorería, sin importes.'), findsOneWidget);

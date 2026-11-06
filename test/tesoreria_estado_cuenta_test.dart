@@ -17,6 +17,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     SharedPreferences.setMockInitialValues({});
     final movimientos = <Map<String, dynamic>>[];
+    final consultasPenas = <int>[];
     await Supabase.initialize(
       url: 'https://ejemplo.supabase.co',
       publishableKey: 'prueba-local',
@@ -86,6 +87,10 @@ void main() {
               'movimientos': <dynamic>[],
             }];
           }
+        } else if (request.url.path.endsWith('lm_penas_envio_tesoreria')) {
+          final equipo = jsonDecode(request.body)['p_equipo_id'] as int;
+          consultasPenas.add(equipo);
+          datos = {'revision': 2, 'observaciones': 'REVISIÓN DEL EQUIPO $equipo', 'jugadores': []};
         } else if (request.url.path.endsWith(
           'lm_tesoreria_registrar_movimiento',
         )) {
@@ -143,6 +148,12 @@ void main() {
     await tester.tap(find.text('EQUIPO PRUEBA').last);
     await cargar();
     expect(find.text('USD 15.00'), findsNWidgets(3));
+    expect(consultasPenas, isEmpty);
+    await tester.tap(find.text('Penas y sanciones')); await cargar();
+    expect(find.textContaining('REVISIÓN DEL EQUIPO 12'), findsOneWidget);
+    expect(consultasPenas, [12]);
+    await tester.tap(find.text('Cerrar')); await tester.pumpAndSettle();
+    expect(find.textContaining('REVISIÓN DEL EQUIPO 12'), findsNothing);
     await tester.tap(find.text('Registrar pago / entrega al árbitro'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).first, '10');
@@ -158,6 +169,10 @@ void main() {
     await tester.tap(find.text('EQUIPO RIVAL').last);
     await cargar();
     expect(find.text('Estado de cuenta de EQUIPO RIVAL'), findsOneWidget);
+    await tester.tap(find.text('Penas y sanciones')); await cargar();
+    expect(find.textContaining('REVISIÓN DEL EQUIPO 20'), findsNWidgets(2));
+    expect(find.textContaining('REVISIÓN DEL EQUIPO 12'), findsNothing);
+    await tester.tap(find.text('Cerrar')); await tester.pumpAndSettle();
     expect(find.text('USD 36.50'), findsNWidgets(2));
     expect(find.text('USD 10.00'), findsNothing);
     expect(find.text('USD 5.00'), findsNothing);

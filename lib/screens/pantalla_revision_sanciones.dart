@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../models/observaciones_sanciones.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PantallaRevisionSanciones extends StatefulWidget {
@@ -12,6 +13,12 @@ class PantallaRevisionSanciones extends StatefulWidget {
 
 class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
   final _observaciones = TextEditingController();
+  ObservacionesSanciones _notas = ObservacionesSanciones('');
+  String? _equipoObservacion;
+
+  Map<String, String> get _equiposObservacion => {
+    for (final j in _jugadores) '${j['equipo_id']}': '${j['equipo']}',
+  };
   Map<String, dynamic>? _datos;
   List<Map<String, dynamic>> _jugadores = [];
   String? _error;
@@ -43,10 +50,14 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
       if (!mounted) return;
       setState(() {
         _datos = datos;
-        _observaciones.text = '${datos['observaciones'] ?? ''}';
+        _notas = ObservacionesSanciones('${datos['observaciones'] ?? ''}');
         _jugadores = [
           for (final j in datos['jugadores']) Map<String, dynamic>.from(j),
         ];
+        if (!_equiposObservacion.containsKey(_equipoObservacion)) {
+          _equipoObservacion = _equiposObservacion.keys.firstOrNull;
+        }
+        _observaciones.text = _notas.equipos[_equipoObservacion] ?? '';
         _sucio = false;
       });
     } catch (e) {
@@ -69,6 +80,16 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
       );
       return;
     }
+    if (_equipoObservacion == null) return;
+    _notas.equipos[_equipoObservacion!] = _observaciones.text.trim();
+    final observaciones = _notas.guardar();
+    if (observaciones.length > 4000) {
+      setState(
+        () => _error =
+            'Reduce las observaciones de los equipos para poder guardar.',
+      );
+      return;
+    }
     setState(() {
       _guardando = true;
       _error = null;
@@ -80,7 +101,7 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
           'p_partido_id': widget.partidoId,
           'p_revision': _datos!['revision'],
           'p_origen': _datos!['origen'],
-          'p_observaciones': _observaciones.text.trim(),
+          'p_observaciones': observaciones,
           'p_enviar': enviar,
           'p_correcciones': [
             for (final j in _jugadores)
@@ -417,6 +438,43 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
                       const SizedBox(height: 16),
                       _equiposSeparados(),
                       const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        initialValue: _equipoObservacion,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Equipo de las observaciones',
+                          filled: true,
+                          fillColor: Color(0xFFFBE7F2),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _equiposObservacion.entries
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e.key,
+                                child: Text(e.value),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: _guardando
+                            ? null
+                            : (equipo) => setState(() {
+                                if (_equipoObservacion != null) {
+                                  _notas.equipos[_equipoObservacion!] =
+                                      _observaciones.text;
+                                }
+                                _equipoObservacion = equipo;
+                                _observaciones.text =
+                                    _notas.equipos[equipo] ?? '';
+                              }),
+                      ),
+                      const SizedBox(height: 12),
+                      if (_notas.general.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            'Observación anterior sin equipo asignado: ${_notas.general}',
+                          ),
+                        ),
                       TextField(
                         controller: _observaciones,
                         enabled: !_guardando,

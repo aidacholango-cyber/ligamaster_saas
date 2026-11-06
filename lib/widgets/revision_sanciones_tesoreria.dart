@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/observaciones_sanciones.dart';
 
 class RevisionSancionesTesoreria extends StatefulWidget {
   const RevisionSancionesTesoreria({
@@ -58,6 +59,7 @@ class _RevisionSancionesTesoreriaState
       }
       if (snap.data is! Map) return const SizedBox.shrink();
       final datos = snap.data as Map;
+      final notas = ObservacionesSanciones('${datos['observaciones'] ?? ''}');
       final filas = List<Map<String, dynamic>>.from(datos['jugadores'] ?? []);
       return Container(
         margin: const EdgeInsets.symmetric(vertical: 10),
@@ -90,7 +92,12 @@ class _RevisionSancionesTesoreriaState
               const Text(
                 'Hay una revisión posterior que todavía no se ha enviado a Tesorería.',
               ),
-            Text('${datos['observaciones'] ?? ''}'),
+            if ((notas.equipos[widget.equipoId] ?? '').isNotEmpty)
+              Text(notas.equipos[widget.equipoId]!),
+            if (notas.general.isNotEmpty)
+              Text(
+                'Observación anterior sin equipo asignado: ${notas.general}',
+              ),
             for (final j in filas)
               Text(
                 'N.º ${j['camiseta'] ?? '—'} · ${j['nombre']} · T.A. ${j['ta']} · T.R. ${j['tr'] == true ? 'Sí' : 'No'}${j['suspension_manual'] == null ? '' : ' · Suspensión manual: ${j['suspension_manual']} partidos'}',

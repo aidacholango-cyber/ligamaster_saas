@@ -17,7 +17,10 @@ void main() {
         expect(request.url.path, endsWith('lm_penas_envio_tesoreria'));
         final equipo = jsonDecode(request.body)['p_equipo_id'] as int;
         equipos.add(equipo);
-        return http.Response(jsonEncode({'revision': 2, 'observaciones': 'Revisado', 'desactualizada': equipo == 2,
+        return http.Response(jsonEncode({'revision': 2, 'observaciones': jsonEncode({
+          'formato': 'penas_equipos_v1', 'general': '',
+          'equipos': {'1': 'NOTA LOCAL', '2': 'NOTA VISITANTE'},
+        }), 'desactualizada': equipo == 2,
           'hay_revision_posterior': equipo == 2, 'jugadores': [{'nombre': 'JUGADOR EQUIPO $equipo', 'camiseta': equipo, 'ta': equipo, 'tr': false}]}),
           200, request: request, headers: {'content-type': 'application/json'});
       }),
@@ -28,10 +31,14 @@ void main() {
     }
     await cargar('1');
     expect(find.textContaining('JUGADOR EQUIPO 1'), findsOneWidget);
+    expect(find.text('NOTA LOCAL'), findsOneWidget);
+    expect(find.text('NOTA VISITANTE'), findsNothing);
     expect(find.textContaining('La hoja cambió'), findsNothing);
     await cargar('2');
     expect(find.textContaining('JUGADOR EQUIPO 1'), findsNothing);
     expect(find.textContaining('JUGADOR EQUIPO 2'), findsOneWidget);
+    expect(find.text('NOTA LOCAL'), findsNothing);
+    expect(find.text('NOTA VISITANTE'), findsOneWidget);
     expect(find.textContaining('La hoja cambió'), findsOneWidget);
     expect(find.textContaining('revisión posterior'), findsOneWidget);
     expect(equipos, [1,2]);
