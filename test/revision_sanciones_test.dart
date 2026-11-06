@@ -21,7 +21,12 @@ void main() {
       authOptions: const FlutterAuthClientOptions(autoRefreshToken: false, detectSessionInUri: false),
       httpClient: MockClient((request) async {
         Object datos;
-        if (request.url.path.endsWith('lm_penas_revision_guardar')) {
+        if (request.url.path.endsWith('lm_penas_conteo_jugadores')) {
+          datos = {'puede_editar': false, 'conteos': {
+            'j1': {'total': 3, 'automatico': 1, 'ajuste': 2, 'partidos': []},
+            'j2': {'total': 1, 'automatico': 1, 'ajuste': 0, 'partidos': []},
+          }};
+        } else if (request.url.path.endsWith('lm_penas_revision_guardar')) {
           final p = jsonDecode(request.body);
           expect(p['p_revision'], revision);
           expect(p['p_origen'], 'origen-original');
@@ -51,6 +56,11 @@ void main() {
     }
     await tester.pumpWidget(const MaterialApp(home: PantallaRevisionSanciones(partidoId: 'p1')));
     await cargar();
+    expect(find.text('Partidos jugados: 3'), findsOneWidget);
+    await tester.tap(find.text('Partidos jugados: 3')); await tester.pumpAndSettle();
+    expect(find.text('Total en este campeonato: 3'), findsOneWidget);
+    expect(find.text('Editar conteo'), findsNothing);
+    await tester.tap(find.text('Cerrar')); await tester.pumpAndSettle();
     expect(find.text('Suspensión automática'), findsNothing);
     await tester.tap(find.text('Enviar a Tesorería')); await tester.pump();
     expect(find.text('Escribe el motivo o las observaciones de la revisión.'), findsOneWidget);

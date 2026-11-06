@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/observaciones_sanciones.dart';
+import '../widgets/conteo_revision_sanciones.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PantallaRevisionSanciones extends StatefulWidget {
@@ -28,9 +29,19 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
   List<Map<String, dynamic>> _jugadores = [];
   String? _error;
   bool _cargando = true, _guardando = false, _sucio = false;
+  late Future<Map<String, dynamic>> _conteos;
+  Future<Map<String, dynamic>> _recargarConteos() async {
+    final nuevos = leerConteoSanciones(widget.partidoId);
+    setState(() {
+      _conteos = nuevos;
+    });
+    return nuevos;
+  }
+
   @override
   void initState() {
     super.initState();
+    _conteos = Future.value({});
     _leer();
   }
 
@@ -59,6 +70,7 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
         _jugadores = [
           for (final j in datos['jugadores']) Map<String, dynamic>.from(j),
         ];
+        _conteos = leerConteoSanciones(widget.partidoId);
         if (!_equiposObservacion.containsKey(_equipoObservacion)) {
           _equipoObservacion =
               _equiposObservacion.containsKey(widget.equipoInicial)
@@ -227,6 +239,11 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
           Text(
             '${j['equipo']} · Hoja original: T.A. ${j['ta_original']} · T.R. ${j['tr_original'] == true ? 'Sí' : 'No'}',
             style: const TextStyle(fontSize: 12),
+          ),
+          ConteoRevisionSanciones(
+            datos: _conteos,
+            jugador: j,
+            recargar: _recargarConteos,
           ),
           if (j['participo'] != true)
             const Text(
