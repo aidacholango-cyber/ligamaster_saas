@@ -150,10 +150,16 @@ class _PantallaLoginState extends State<PantallaLogin> {
         destino = const PantallaDelegado();
       }
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
+      // Mantener el acceso debajo del panel permite volver con Atrás del navegador.
+      _emailController.clear();
+      _passwordController.clear();
+      await Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => destino),
-        (_) => false,
       );
+      // Si se volvió mediante Atrás, cerrar la sesión antes de habilitar el acceso.
+      // Los botones de salida propios eliminan esta ruta; en ese caso ya cerraron sesión.
+      if (!mounted) return;
+      await db.auth.signOut(scope: SignOutScope.local);
     } on PostgrestException catch (e) {
       error =
           rolElegido == 'Vocal' && (e.code == 'PGRST202' || e.code == '42883')
