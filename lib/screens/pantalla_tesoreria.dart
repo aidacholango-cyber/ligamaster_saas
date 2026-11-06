@@ -405,14 +405,6 @@ class _PantallaTesoreriaState extends State<PantallaTesoreria> {
           spacing: 10,
           runSpacing: 8,
           children: [
-            OutlinedButton(
-              onPressed: () => _fecha(true),
-              child: Text(
-                _desde == null
-                    ? 'Partidos desde…'
-                    : fechaTesoreria(_desde!.toIso8601String()),
-              ),
-            ),
             if (datos['puede_editar'] == true)
               FilledButton.icon(
                 style: FilledButton.styleFrom(backgroundColor: const Color(0xFFBC1676)),
@@ -443,6 +435,14 @@ class _PantallaTesoreriaState extends State<PantallaTesoreria> {
                   ),
                 ),
               ),
+            OutlinedButton(
+              onPressed: () => _fecha(true),
+              child: Text(
+                _desde == null
+                    ? 'Partidos desde…'
+                    : fechaTesoreria(_desde!.toIso8601String()),
+              ),
+            ),
             OutlinedButton(
               onPressed: () => _fecha(false),
               child: Text(
