@@ -12,6 +12,14 @@ class ResumenSuperadmin extends StatefulWidget {
 class _ResumenSuperadminState extends State<ResumenSuperadmin> {
   late Future<List<Map<String, dynamic>>> _datos = _leer();
 
+  Color _colorCategoria(String categoria) {
+    final nombre = categoria.toLowerCase();
+    if (nombre.contains('femenino')) return const Color(0xFFC01077);
+    if (nombre.contains('12')) return const Color(0xFF925900);
+    if (nombre.contains('40')) return const Color(0xFF1F49DF);
+    return const Color(0xFF166534);
+  }
+
   Future<List<Map<String, dynamic>>> _tabla(String tabla, String campos) async {
     final filas = <Map<String, dynamic>>[];
     var inicio = 0;
@@ -87,9 +95,32 @@ class _ResumenSuperadminState extends State<ResumenSuperadmin> {
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                Text(
-                  'Total de jugadores por ligas: $total',
-                  style: Theme.of(context).textTheme.headlineSmall,
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1F49DF),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.groups_rounded,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          'Total de jugadores por ligas: $total',
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
                 const Text(
@@ -99,20 +130,54 @@ class _ResumenSuperadminState extends State<ResumenSuperadmin> {
                 if (filas.isEmpty) const Text('No hay ligas registradas.'),
                 for (final fila in filas)
                   Card(
+                    color: const Color(0xFFF0F7F3),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      side: const BorderSide(color: Color(0xFFB6DCC7)),
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            '${fila['nombre']}',
-                            style: Theme.of(context).textTheme.titleLarge,
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.emoji_events_outlined,
+                                color: Color(0xFF166534),
+                                size: 28,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  '${fila['nombre']}',
+                                  style: Theme.of(context).textTheme.titleLarge
+                                      ?.copyWith(
+                                        color: const Color(0xFF166534),
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                ),
+                              ),
+                            ],
                           ),
-                          Text(
-                            '${fila['jugadores']} jugadores registrados',
-                            style: const TextStyle(
-                              color: Color(0xFF166534),
-                              fontWeight: FontWeight.bold,
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF166534),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${fila['jugadores']} jugadores registrados',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -124,8 +189,25 @@ class _ResumenSuperadminState extends State<ResumenSuperadmin> {
                                   in (fila['categorias'] as Map<String, int>)
                                       .entries)
                                 Chip(
+                                  backgroundColor: _colorCategoria(
+                                    categoria.key,
+                                  ),
+                                  side: BorderSide.none,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 6,
+                                  ),
+                                  avatar: const Icon(
+                                    Icons.sports_soccer,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
                                   label: Text(
                                     '${categoria.key}: ${categoria.value} fichas',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                             ],
