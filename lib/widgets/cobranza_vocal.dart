@@ -3,6 +3,78 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/estado_cuenta.dart';
 import 'movimiento_tesoreria_dialog.dart';
 
+class CobranzaPartidoVocal extends StatefulWidget {
+  const CobranzaPartidoVocal({
+    super.key,
+    required this.partidoId,
+    required this.equipos,
+    required this.habilitado,
+  });
+  final String partidoId;
+  final Map<int, String> equipos;
+  final bool habilitado;
+
+  @override
+  State<CobranzaPartidoVocal> createState() => _CobranzaPartidoVocalState();
+}
+
+class _CobranzaPartidoVocalState extends State<CobranzaPartidoVocal> {
+  int? _equipo;
+
+  @override
+  Widget build(BuildContext context) {
+    final equipo = widget.equipos.containsKey(_equipo)
+        ? _equipo!
+        : widget.equipos.keys.first;
+    return Card(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: Color(0xFFB6DCC7)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            const Text(
+              'Recaudación del partido',
+              style: TextStyle(
+                color: Color(0xFF166534),
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<int>(
+              key: ValueKey(equipo),
+              initialValue: equipo,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Equipo',
+                filled: true,
+                fillColor: Color(0xFFF0F4FF),
+                border: OutlineInputBorder(),
+              ),
+              items: widget.equipos.entries
+                  .map(
+                    (e) => DropdownMenuItem(value: e.key, child: Text(e.value)),
+                  )
+                  .toList(),
+              onChanged: (valor) => setState(() => _equipo = valor),
+            ),
+            CobranzaVocal(
+              key: ValueKey('${widget.partidoId}-$equipo'),
+              partidoId: widget.partidoId,
+              equipoId: equipo,
+              habilitado: widget.habilitado,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Recaudación del equipo en el partido abierto por el vocal de la jornada.
 /// La autorización y el equipo/partido se comprueban también en Supabase.
 class CobranzaVocal extends StatefulWidget {

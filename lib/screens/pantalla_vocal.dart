@@ -1037,9 +1037,6 @@ SingleChildScrollView(
                   _tablaEquipo(equipoId, jugadores, color, true),
                   if (!widget.consultaSanciones)
                     TesoreriaEquipo(partidoId: widget.partidoId, equipoId: equipoId.toString()),
-                  if (!widget.soloLectura && !widget.edicionAdministrador)
-                    CobranzaVocal(partidoId: widget.partidoId, equipoId: (equipoId as num).toInt(),
-                      habilitado: _datos?['editable'] == true),
                 ]),
               ),
             ),
@@ -1180,6 +1177,19 @@ SingleChildScrollView(
                                     );
                             },
                           ),
+                          const SizedBox(height: 20),
+                          if (!widget.soloLectura && !widget.edicionAdministrador)
+                            ControlCentrado(
+                              ancho: 600,
+                              child: CobranzaPartidoVocal(
+                                partidoId: widget.partidoId,
+                                equipos: {
+                                  (partido['equipo_local_id'] as num).toInt(): partido['local'].toString(),
+                                  (partido['equipo_visitante_id'] as num).toInt(): partido['visitante'].toString(),
+                                },
+                                habilitado: _datos?['editable'] == true,
+                              ),
+                            ),
                           const SizedBox(height: 20),
                           ControlCentrado(
                             ancho: 936,
