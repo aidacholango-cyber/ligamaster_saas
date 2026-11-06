@@ -4,7 +4,11 @@ import '../models/observaciones_sanciones.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PantallaRevisionSanciones extends StatefulWidget {
-  const PantallaRevisionSanciones({super.key, required this.partidoId, this.equipoInicial});
+  const PantallaRevisionSanciones({
+    super.key,
+    required this.partidoId,
+    this.equipoInicial,
+  });
   final String partidoId;
   final String? equipoInicial;
   @override
@@ -56,8 +60,10 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
           for (final j in datos['jugadores']) Map<String, dynamic>.from(j),
         ];
         if (!_equiposObservacion.containsKey(_equipoObservacion)) {
-          _equipoObservacion = _equiposObservacion.containsKey(widget.equipoInicial)
-              ? widget.equipoInicial : _equiposObservacion.keys.firstOrNull;
+          _equipoObservacion =
+              _equiposObservacion.containsKey(widget.equipoInicial)
+              ? widget.equipoInicial
+              : _equiposObservacion.keys.firstOrNull;
         }
         _observaciones.text = _notas.equipos[_equipoObservacion] ?? '';
         _sucio = false;
@@ -441,46 +447,57 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
                       const SizedBox(height: 16),
                       _equiposSeparados(),
                       const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        initialValue: _equipoObservacion,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Equipo de las observaciones',
-                          filled: true,
-                          fillColor: Color(0xFFFBE7F2),
-                          border: OutlineInputBorder(),
-                        ),
-                        items: _equiposObservacion.entries
-                            .map(
-                              (e) => DropdownMenuItem(
-                                value: e.key,
-                                child: Text(e.value),
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 560),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              DropdownButtonFormField<String>(
+                                initialValue: _equipoObservacion,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'Equipo de las observaciones',
+                                  filled: true,
+                                  fillColor: Color(0xFFFBE7F2),
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: _equiposObservacion.entries
+                                    .map(
+                                      (e) => DropdownMenuItem(
+                                        value: e.key,
+                                        child: Text(e.value),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: _guardando
+                                    ? null
+                                    : (equipo) => setState(() {
+                                        if (_equipoObservacion != null) {
+                                          _notas.equipos[_equipoObservacion!] =
+                                              _observaciones.text;
+                                        }
+                                        _equipoObservacion = equipo;
+                                        _observaciones.text =
+                                            _notas.equipos[equipo] ?? '';
+                                      }),
                               ),
-                            )
-                            .toList(),
-                        onChanged: _guardando
-                            ? null
-                            : (equipo) => setState(() {
-                                if (_equipoObservacion != null) {
-                                  _notas.equipos[_equipoObservacion!] =
-                                      _observaciones.text;
-                                }
-                                _equipoObservacion = equipo;
-                                _observaciones.text =
-                                    _notas.equipos[equipo] ?? '';
-                              }),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _observaciones,
-                        enabled: !_guardando,
-                        maxLength: 4000,
-                        maxLines: 3,
-                        decoration: InputDecoration(
-                          labelText: 'Motivo u observaciones · ${_equiposObservacion[_equipoObservacion] ?? 'Selecciona un equipo'}',
-                          border: const OutlineInputBorder(),
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: _observaciones,
+                                enabled: !_guardando,
+                                maxLength: 4000,
+                                maxLines: 3,
+                                decoration: InputDecoration(
+                                  labelText:
+                                      'Motivo u observaciones · ${_equiposObservacion[_equipoObservacion] ?? 'Selecciona un equipo'}',
+                                  border: const OutlineInputBorder(),
+                                ),
+                                onChanged: (_) => _cambiar(() {}),
+                              ),
+                            ],
+                          ),
                         ),
-                        onChanged: (_) => _cambiar(() {}),
                       ),
                       Wrap(
                         spacing: 12,
