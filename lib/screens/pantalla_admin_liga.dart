@@ -7,6 +7,7 @@ import '../widgets/dialogo_nuevo_responsable.dart';
 import '../widgets/imagen_cedula.dart';
 import 'pantalla_campeonatos.dart';
 import 'pantalla_tesoreria.dart';
+import 'pantalla_login.dart';
 
 class PantallaAdminLiga extends StatelessWidget {
   const PantallaAdminLiga({super.key});
@@ -31,6 +32,40 @@ class __ContenidoAdminLigaState extends State<_ContenidoAdminLiga> {
   bool _accionAdmin = false;
   String? _errorCarga;
   bool _cargando = true;
+  bool _cerrandoSesion = false;
+
+  Future<void> _cerrarSesion() async {
+    if (_cerrandoSesion || _accionAdmin || _subiendoLogo) return;
+    setState(() => _cerrandoSesion = true);
+    try {
+      await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const PantallaLogin()),
+        (_) => false,
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo cerrar la sesión. Intenta nuevamente.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _cerrandoSesion = false);
+    }
+  }
+
+  Widget get _botonCerrarSesion => IconButton(
+    onPressed: _cerrandoSesion || _accionAdmin || _subiendoLogo ? null : _cerrarSesion,
+    tooltip: 'Cerrar sesión y volver al inicio',
+    icon: const Icon(Icons.logout),
+  );
+
+  Widget get _botonVolverAlInicio => IconButton(
+    onPressed: _cerrandoSesion || _accionAdmin || _subiendoLogo ? null : _cerrarSesion,
+    tooltip: 'Volver al inicio y cerrar sesión',
+    icon: const Icon(Icons.arrow_back),
+  );
 
   @override
   void initState() {
@@ -625,7 +660,7 @@ class __ContenidoAdminLigaState extends State<_ContenidoAdminLiga> {
   Widget build(BuildContext context) {
     if (_errorCarga != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Administrador de liga')),
+        appBar: AppBar(title: const Text('Administrador de liga'), leading: _botonVolverAlInicio, actions: [_botonCerrarSesion]),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -650,6 +685,8 @@ class __ContenidoAdminLigaState extends State<_ContenidoAdminLiga> {
       backgroundColor: const Color(0xFFF2F2F5),
       appBar: AppBar(
         title: const Text('Panel de Administrador de Liga'),
+        leading: _botonVolverAlInicio,
+        actions: [_botonCerrarSesion],
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
       ),
