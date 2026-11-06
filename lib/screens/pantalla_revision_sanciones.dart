@@ -182,8 +182,9 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
       _cambiar(() => j['suspension_manual'] = valor == -1 ? null : valor);
   }
 
-  Widget _jugador(Map<String, dynamic> j) => Card(
-    color: const Color(0xFFF1F7F3),
+  Widget _jugador(Map<String, dynamic> j, Color color) => Card(
+    key: ValueKey('revision-jugador-${j['id']}'),
+    color: color.withValues(alpha: .055),
     child: Padding(
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -191,10 +192,7 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
         children: [
           Text(
             '${j['nombre']} · N.º ${j['camiseta'] ?? '—'}',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF166534),
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, color: color),
           ),
           Text(
             '${j['equipo']} · Hoja original: T.A. ${j['ta_original']} · T.R. ${j['tr_original'] == true ? 'Sí' : 'No'}',
@@ -271,6 +269,87 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
       ),
     ),
   );
+
+  Widget _equiposSeparados() {
+    final equipos = <String, List<Map<String, dynamic>>>{};
+    for (final jugador in _jugadores) {
+      final id = '${jugador['equipo_id'] ?? jugador['equipo']}';
+      // Conservar las mismas filas editables para guardar las correcciones.
+      equipos.putIfAbsent(id, () => []).add(jugador);
+    }
+    if (equipos.isEmpty) return const SizedBox.shrink();
+    final grupos = equipos.values.toList();
+    return LayoutBuilder(
+      builder: (context, espacio) {
+        final dosColumnas = grupos.length > 1 && espacio.maxWidth >= 960;
+        final ancho = dosColumnas
+            ? (espacio.maxWidth - 16) / 2
+            : espacio.maxWidth;
+        return Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            for (var indice = 0; indice < grupos.length; indice++)
+              SizedBox(
+                width: ancho,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color:
+                          (indice.isEven
+                                  ? const Color(0xFF166534)
+                                  : const Color(0xFF4351BF))
+                              .withValues(alpha: .3),
+                    ),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        color: indice.isEven
+                            ? const Color(0xFF166534)
+                            : const Color(0xFF4351BF),
+                        child: Text(
+                          '${grupos[indice].first['equipo'] ?? 'Equipo'}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Column(
+                          children: [
+                            for (final jugador in grupos[indice])
+                              _jugador(
+                                jugador,
+                                indice.isEven
+                                    ? const Color(0xFF166534)
+                                    : const Color(0xFF4351BF),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: !_sucio && !_guardando,
@@ -308,7 +387,7 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
               padding: const EdgeInsets.all(20),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 800),
+                  constraints: const BoxConstraints(maxWidth: 1160),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -335,7 +414,8 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
                           onPressed: _leer,
                           child: const Text('Reintentar'),
                         ),
-                      for (final j in _jugadores) _jugador(j),
+                      const SizedBox(height: 16),
+                      _equiposSeparados(),
                       const SizedBox(height: 16),
                       TextField(
                         controller: _observaciones,
