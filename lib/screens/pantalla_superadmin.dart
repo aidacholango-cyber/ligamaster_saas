@@ -2269,6 +2269,10 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                         ),
                         ElevatedButton.icon(
                           onPressed: _crearNuevaLiga,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF166534),
+                            foregroundColor: Colors.white,
+                          ),
                           icon: const Icon(Icons.add),
                           label: const Text('Nueva Liga'),
                         ),
@@ -2277,6 +2281,11 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                             MaterialPageRoute(
                               builder: (_) => const ResumenSuperadmin(),
                             ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: const Color(0xFFC01077),
+                            foregroundColor: Colors.white,
+                            side: BorderSide.none,
                           ),
                           icon: const Icon(Icons.groups_outlined),
                           label: const Text('Jugadores por liga'),
@@ -2321,9 +2330,18 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                               final adminNombre = liga['admin_nombre'] ?? 'N/A';
                               final adminCorreo = liga['admin_correo'] ?? 'N/A';
                               final adminTel = liga['admin_telefono'] ?? 'N/A';
+                              final colorLiga = index.isEven
+                                  ? const Color(0xFF166534)
+                                  : const Color(0xFF1F49DF);
 
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 6),
+                                color: colorLiga.withValues(alpha: .06),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: BorderSide(color: colorLiga.withValues(alpha: .3)),
+                                ),
                                 child: ListTile(
                                   leading: ClipRRect(
                                     borderRadius: BorderRadius.circular(20),
@@ -2354,9 +2372,9 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                                     ),
                                     child: Text(
                                       liga['nombre'] ?? 'Sin nombre',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.indigo,
+                                        color: colorLiga,
                                       ),
                                     ),
                                   ),
@@ -2371,6 +2389,11 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                                           liga['id'].toString(),
                                           liga['nombre'] ?? 'Liga',
                                         ),
+                                        style: OutlinedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF166534),
+                                          foregroundColor: Colors.white,
+                                          side: BorderSide.none,
+                                        ),
                                         icon: const Icon(
                                           Icons.groups,
                                           size: 16,
@@ -2383,6 +2406,11 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                                       OutlinedButton.icon(
                                         onPressed: () =>
                                             _verDetallesAdmin(liga),
+                                        style: OutlinedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF1F49DF),
+                                          foregroundColor: Colors.white,
+                                          side: BorderSide.none,
+                                        ),
                                         icon: const Icon(
                                           Icons.person,
                                           size: 16,
@@ -2396,6 +2424,8 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                                           color: Colors.orange,
                                         ),
                                         tooltip: 'Editar Liga',
+                                        style: IconButton.styleFrom(
+                                          backgroundColor: const Color(0xFFFFF1D6)),
                                         onPressed: () => _editarLiga(liga),
                                       ),
                                       IconButton(
@@ -2404,6 +2434,8 @@ class _PantallaSuperAdminState extends State<PantallaSuperAdmin> {
                                           color: Colors.red,
                                         ),
                                         tooltip: 'Eliminar Liga',
+                                        style: IconButton.styleFrom(
+                                          backgroundColor: const Color(0xFFFFE9E7)),
                                         onPressed: () => _eliminarLiga(liga),
                                       ),
                                     ],
