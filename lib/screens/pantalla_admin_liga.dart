@@ -1335,16 +1335,20 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
   }
 
   Widget _cuadroFoto(String titulo, String url, {bool documento = false}) {
+    final color = documento ? const Color(0xFFBC1676) : const Color(0xFF4351BF);
+    final coloreado = widget.campeonatoCalificaciones != null;
     return Column(
       children: [
-        Text(titulo, textAlign: TextAlign.center),
+        Text(titulo, textAlign: TextAlign.center,
+          style: coloreado ? TextStyle(color: color, fontWeight: FontWeight.w600) : null),
         const SizedBox(height: 8),
         Container(
           height: 150,
           width: double.infinity,
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFCAC4D0)),
+            color: coloreado ? color.withValues(alpha: .06) : null,
+            border: Border.all(color: coloreado ? color.withValues(alpha: .35) : const Color(0xFFCAC4D0)),
             borderRadius: BorderRadius.circular(12),
           ),
           child: url.isEmpty
@@ -1371,6 +1375,17 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
     );
   }
 
+  Widget _datoFicha(String texto, Color color) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: .07),
+      border: Border.all(color: color.withValues(alpha: .3)),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: SelectableText(texto, style: TextStyle(color: color, fontWeight: FontWeight.w500)),
+  );
+
   void _detalles(Map<String, dynamic> jugador) {
     jugador = Map<String, dynamic>.from(jugador);
     jugador['num_camiseta'] ??= jugador['dorsal'] ?? jugador['numero_camiseta'];
@@ -1385,6 +1400,10 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
       'telefono': 'Teléfono',
       'direccion': 'Dirección',
     };
+    final coloreado = widget.campeonatoCalificaciones != null;
+    const coloresFicha = [Color(0xFF4351BF), Color(0xFF166534), Color(0xFFBC1676), Color(0xFF925900)];
+    final anchoFicha = (MediaQuery.sizeOf(context).width - 128).clamp(0.0, 620.0).toDouble();
+    final anchoDato = anchoFicha >= 450 ? (anchoFicha - 10) / 2 : anchoFicha;
     showDialog<void>(
       context: context,
       builder: (ctx) => _AdminDialog(
@@ -1420,6 +1439,21 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
                   ],
                 ),
                 const SizedBox(height: 12),
+                if (coloreado) ...[
+                  Wrap(spacing: 10, runSpacing: 10, children: [
+                    for (var i = 0; i < campos.length; i++)
+                      SizedBox(width: anchoDato, child: _datoFicha(
+                        '${campos.values.elementAt(i)}: ${jugador[campos.keys.elementAt(i)] ?? 'Sin registrar'}',
+                        coloresFicha[i % coloresFicha.length],
+                      )),
+                  ]),
+                  const SizedBox(height: 14),
+                  _datoFicha('Observaciones: ${jugador['observaciones'] ?? 'Sin revisión'}', const Color(0xFF925900)),
+                  const SizedBox(height: 10),
+                  _datoFicha('Revisado por: ${jugador['revisado_por'] ?? 'Sin registrar'}\nFecha de revisión: ${_fecha(jugador['fecha_revision'])}', const Color(0xFF166534)),
+                  const SizedBox(height: 10),
+                  _datoFicha('Calificado por: ${jugador['calificado_por'] ?? 'Sin registrar'}\nFecha de calificación: ${_fecha(jugador['fecha_calificacion'])}', const Color(0xFFBC1676)),
+                ] else ...[
                 ...campos.entries.map(
                   (campo) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 5),
@@ -1442,6 +1476,7 @@ class _RevisionState extends State<PantallaRevisionJugadoresAdmin> {
                 Text(
                   'Fecha de calificación: ${_fecha(jugador['fecha_calificacion'])}',
                 ),
+                ],
               ],
             ),
           ),
