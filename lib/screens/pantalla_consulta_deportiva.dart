@@ -79,7 +79,40 @@ class _PantallaConsultaDeportivaState extends State<PantallaConsultaDeportiva>
         '${dos(fecha.hour)}:${dos(fecha.minute)}';
   }
 
+  Widget _etiqueta(String texto, Color color, IconData icono) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: .09),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icono, size: 17, color: color),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            texto,
+            style: TextStyle(color: color, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
+    ),
+  );
+
   Widget _partido(Map<String, dynamic> p) => Card(
+    color: p['goles_local'] != null
+        ? const Color(0xFFF0FDF4)
+        : const Color(0xFFEFF4FF),
+    margin: const EdgeInsets.only(bottom: 12),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+      side: BorderSide(
+        color: p['goles_local'] != null
+            ? const Color(0xFFB6DCC7)
+            : const Color(0xFFBAC8F6),
+      ),
+    ),
     child: Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -87,20 +120,58 @@ class _PantallaConsultaDeportivaState extends State<PantallaConsultaDeportiva>
         children: [
           Text(
             '${p['fase']} · Jornada ${p['jornada']} · Partido ${p['numero_partido']}',
+            style: const TextStyle(
+              color: Color(0xFF4351BF),
+              fontWeight: FontWeight.w600,
+            ),
           ),
           if (p['grupo'] != null) Text('Grupo: ${p['grupo']}'),
           const SizedBox(height: 8),
           Text(
             '${p['local']} vs. ${p['visitante']}',
-            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF166534),
+            ),
           ),
           const SizedBox(height: 8),
-          Text(_fecha(p['fecha_hora'])),
-          Text('Cancha: ${p['cancha'] ?? 'Por definir'}'),
-          Text('Estado: ${p['estado']}'),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _etiqueta(
+                _fecha(p['fecha_hora']),
+                const Color(0xFF4351BF),
+                Icons.calendar_month_outlined,
+              ),
+              _etiqueta(
+                'Cancha: ${p['cancha'] ?? 'Por definir'}',
+                const Color(0xFFBC1676),
+                Icons.sports_soccer,
+              ),
+              _etiqueta(
+                'Estado: ${p['estado']}',
+                const Color(0xFF925900),
+                Icons.event_available_outlined,
+              ),
+            ],
+          ),
           if (p['goles_local'] != null) ...[
-            Text(
-              'Resultado confirmado: ${p['goles_local']} – ${p['goles_visitante']}',
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF166534),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'Resultado confirmado: ${p['goles_local']} – ${p['goles_visitante']}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             if (p['prorroga_local'] != null)
               Text(
@@ -130,33 +201,83 @@ class _PantallaConsultaDeportivaState extends State<PantallaConsultaDeportiva>
     };
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columnSpacing: 20,
-        columns: [
-          for (final entrada in campos.entries)
-            DataColumn(
-              label: Text(entrada.key),
-              numeric: !['equipo', 'jugador'].contains(entrada.value),
-            ),
-        ],
-        rows: [
-          for (final fila in filas)
-            DataRow(
-              cells: [
-                for (final campo in campos.values)
-                  DataCell(
-                    Text(
-                      campo == 'jugador'
-                          ? '${fila['nombres'] ?? ''} ${fila['apellidos'] ?? ''}'
-                          : '${fila[campo] ?? ''}',
-                      style: ['puntos', 'goles'].contains(campo)
-                          ? const TextStyle(fontWeight: FontWeight.bold)
-                          : null,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFB6DCC7)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: DataTable(
+          columnSpacing: 20,
+          headingRowColor: const WidgetStatePropertyAll(Color(0xFF166534)),
+          headingTextStyle: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+          border: const TableBorder(
+            horizontalInside: BorderSide(color: Color(0xFFDCE8E0)),
+          ),
+          columns: [
+            for (final entrada in campos.entries)
+              DataColumn(
+                label: Text(entrada.key),
+                numeric: !['equipo', 'jugador'].contains(entrada.value),
+              ),
+          ],
+          rows: [
+            for (var indice = 0; indice < filas.length; indice++)
+              DataRow(
+                color: WidgetStatePropertyAll(
+                  indice.isEven ? const Color(0xFFF0FDF4) : Colors.white,
+                ),
+                cells: [
+                  for (final campo in campos.values)
+                    DataCell(
+                      campo == 'puntos'
+                          ? Container(
+                              constraints: const BoxConstraints(minWidth: 36),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFBC1676),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${filas[indice][campo] ?? ''}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            )
+                          : Text(
+                              campo == 'jugador'
+                                  ? '${filas[indice]['nombres'] ?? ''} ${filas[indice]['apellidos'] ?? ''}'
+                                  : '${filas[indice][campo] ?? ''}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: campo == 'equipo'
+                                    ? const Color(0xFF1D4DE2)
+                                    : campo == 'ganados' ||
+                                          campo == 'goles_favor'
+                                    ? const Color(0xFF166534)
+                                    : campo == 'perdidos' ||
+                                          campo == 'goles_contra'
+                                    ? const Color(0xFFB82018)
+                                    : campo == 'empatados'
+                                    ? const Color(0xFF925900)
+                                    : const Color(0xFF334155),
+                              ),
+                            ),
                     ),
-                  ),
-              ],
-            ),
-        ],
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -186,10 +307,21 @@ class _PantallaConsultaDeportivaState extends State<PantallaConsultaDeportiva>
     }
     return [
       for (final grupo in grupos.values) ...[
-        Text(
-          '${grupo.first['fase']}'
-          '${grupo.first['grupo'] == null ? '' : ' · ${grupo.first['grupo']}'}',
-          style: Theme.of(context).textTheme.titleMedium,
+        Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFF4FF),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            '${grupo.first['fase']}'
+            '${grupo.first['grupo'] == null ? '' : ' · ${grupo.first['grupo']}'}',
+            style: const TextStyle(
+              color: Color(0xFF4351BF),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
         _tabla(grupo),
         const SizedBox(height: 20),
