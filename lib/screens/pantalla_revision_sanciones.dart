@@ -236,9 +236,19 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
             '${j['nombre']} · N.º ${j['camiseta'] ?? '—'}',
             style: TextStyle(fontWeight: FontWeight.bold, color: color),
           ),
-          Text(
-            '${j['equipo']} · Hoja original: T.A. ${j['ta_original']} · T.R. ${j['tr_original'] == true ? 'Sí' : 'No'}',
-            style: const TextStyle(fontSize: 12),
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.symmetric(vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '${j['equipo']} · Hoja original: T.A. ${j['ta_original']} · T.R. ${j['tr_original'] == true ? 'Sí' : 'No'}',
+              style: const TextStyle(color: Colors.white,
+                fontSize: 14, fontWeight: FontWeight.w600),
+            ),
           ),
           ConteoRevisionSanciones(
             datos: _conteos,
