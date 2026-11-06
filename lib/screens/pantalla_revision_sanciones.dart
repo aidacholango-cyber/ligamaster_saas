@@ -4,8 +4,9 @@ import '../models/observaciones_sanciones.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PantallaRevisionSanciones extends StatefulWidget {
-  const PantallaRevisionSanciones({super.key, required this.partidoId});
+  const PantallaRevisionSanciones({super.key, required this.partidoId, this.equipoInicial});
   final String partidoId;
+  final String? equipoInicial;
   @override
   State<PantallaRevisionSanciones> createState() =>
       _PantallaRevisionSancionesState();
@@ -55,7 +56,8 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
           for (final j in datos['jugadores']) Map<String, dynamic>.from(j),
         ];
         if (!_equiposObservacion.containsKey(_equipoObservacion)) {
-          _equipoObservacion = _equiposObservacion.keys.firstOrNull;
+          _equipoObservacion = _equiposObservacion.containsKey(widget.equipoInicial)
+              ? widget.equipoInicial : _equiposObservacion.keys.firstOrNull;
         }
         _observaciones.text = _notas.equipos[_equipoObservacion] ?? '';
         _sucio = false;

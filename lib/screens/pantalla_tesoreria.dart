@@ -1,6 +1,7 @@
 import '../widgets/movimiento_tesoreria_dialog.dart';
 import '../widgets/tesoreria_equipo.dart';
 import '../widgets/revision_sanciones_tesoreria.dart';
+import 'pantalla_revision_sanciones.dart';
 import 'package:flutter/material.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -425,6 +426,14 @@ class _PantallaTesoreriaState extends State<PantallaTesoreria> {
                             RevisionSancionesTesoreria(
                               key: ValueKey('consulta-penas-$_equipo-${origen['partido_id']}'),
                               partidoId: '${origen['partido_id']}', equipoId: '$_equipo',
+                              alEditar: widget.accesoTesoreria ? null : () async {
+                                await Navigator.of(context).push(MaterialPageRoute(
+                                  builder: (_) => PantallaRevisionSanciones(
+                                    partidoId: '${origen['partido_id']}',
+                                    equipoInicial: '$_equipo',
+                                  ),
+                                ));
+                              },
                               partidoOrigen: '${origen['local']} vs ${origen['visitante']} · ${fechaTesoreria(origen['fecha'])}',
                             ),
                           if (historial.isEmpty) const Text('No hay partidos para este equipo.'),

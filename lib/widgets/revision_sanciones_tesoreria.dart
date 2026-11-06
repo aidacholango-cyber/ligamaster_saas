@@ -8,9 +8,11 @@ class RevisionSancionesTesoreria extends StatefulWidget {
     required this.partidoId,
     required this.equipoId,
     this.partidoOrigen,
+    this.alEditar,
   });
   final String partidoId, equipoId;
   final String? partidoOrigen;
+  final Future<void> Function()? alEditar;
   @override
   State<RevisionSancionesTesoreria> createState() =>
       _RevisionSancionesTesoreriaState();
@@ -83,6 +85,16 @@ class _RevisionSancionesTesoreriaState
                 fontWeight: FontWeight.bold,
               ),
             ),
+            if (widget.alEditar != null)
+              TextButton.icon(
+                style: TextButton.styleFrom(foregroundColor: const Color(0xFFC01077)),
+                icon: const Icon(Icons.edit, size: 18),
+                label: const Text('Editar sanciones y observaciones'),
+                onPressed: () async {
+                  await widget.alEditar!();
+                  if (mounted) setState(_leer);
+                },
+              ),
             if (datos['desactualizada'] == true)
               const Text(
                 'La hoja cambió después del envío. Solicita una nueva revisión antes de cobrar.',
