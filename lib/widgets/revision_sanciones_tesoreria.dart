@@ -6,8 +6,10 @@ class RevisionSancionesTesoreria extends StatefulWidget {
     super.key,
     required this.partidoId,
     required this.equipoId,
+    this.partidoOrigen,
   });
   final String partidoId, equipoId;
+  final String? partidoOrigen;
   @override
   State<RevisionSancionesTesoreria> createState() =>
       _RevisionSancionesTesoreriaState();
@@ -67,6 +69,11 @@ class _RevisionSancionesTesoreriaState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (widget.partidoOrigen != null)
+              Text(
+                widget.partidoOrigen!,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             Text(
               'Penas y sanciones · Revisión ${datos['revision']}',
               style: const TextStyle(

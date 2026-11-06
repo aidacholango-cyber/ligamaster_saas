@@ -4,6 +4,33 @@ import 'cobro_manual.dart';
 String dineroTesoreria(int centavos) =>
     '${centavos < 0 ? '-' : ''}${importeCentavos(centavos.abs())}';
 
+/// El historial ya está limitado al equipo y campeonato seleccionados.
+Map<String, dynamic>? siguientePartidoTesoreria(
+  Map<String, dynamic> origen,
+  List<Map<String, dynamic>> historial,
+) {
+  final fecha = DateTime.tryParse('${origen['fecha']}');
+  if (fecha == null) return null;
+  final siguientes =
+      historial.where((p) {
+        if (p['estado'] == 'cancelado' || p['estado'] == 'aplazado')
+          return false;
+        final otra = DateTime.tryParse('${p['fecha']}');
+        return otra != null && otra.isAfter(fecha);
+      }).toList()..sort(
+        (a, b) => DateTime.parse(
+          '${a['fecha']}',
+        ).compareTo(DateTime.parse('${b['fecha']}')),
+      );
+  // Fechas coincidentes no permiten determinar a qué partido corresponde cobrar.
+  if (siguientes.length > 1 &&
+      DateTime.parse(
+        '${siguientes[0]['fecha']}',
+      ).isAtSameMomentAs(DateTime.parse('${siguientes[1]['fecha']}')))
+    return null;
+  return siguientes.isEmpty ? null : siguientes.first;
+}
+
 String fechaTesoreria(Object? valor) {
   final fecha = DateTime.tryParse('$valor')?.toLocal();
   if (fecha == null) return 'Sin fecha';

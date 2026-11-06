@@ -274,7 +274,6 @@ class _PantallaTesoreriaState extends State<PantallaTesoreria> {
               '${fechaTesoreria(partido['fecha'])} · Jornada ${partido['jornada']} · Partido ${partido['numero_partido']}',
             ),
             const Divider(),
-            if (editable) RevisionSancionesTesoreria(partidoId: '${partido['partido_id']}', equipoId: '$_equipo'),
             if (cobro == null) ...[
               const Text(
                 'Cobro de este equipo pendiente de publicar. No suma al total.',
@@ -376,8 +375,19 @@ class _PantallaTesoreriaState extends State<PantallaTesoreria> {
   }
 
   Widget _informe(Map<String, dynamic> datos) {
+    final historial = List<Map<String, dynamic>>.from(datos['cobros'] as List);
+    final sancionesPara = <String, List<Map<String, dynamic>>>{};
+    final sinSiguiente = <Map<String, dynamic>>[];
+    for (final origen in historial) {
+      final siguiente = siguientePartidoTesoreria(origen, historial);
+      if (siguiente == null) {
+        sinSiguiente.add(origen);
+      } else {
+        sancionesPara.putIfAbsent('${siguiente['partido_id']}', () => []).add(origen);
+      }
+    }
     final partidos = partidosEnPeriodo(
-      List<Map<String, dynamic>>.from(datos['cobros'] as List),
+      historial,
       _desde,
       _hasta,
     );
@@ -493,7 +503,25 @@ class _PantallaTesoreriaState extends State<PantallaTesoreria> {
           const Text(
             'No hay cobros publicados para esta selección. Se publican desde Planilla → Tesorería de cada equipo.',
           ),
-        for (final p in partidos) _partido(p, datos['puede_editar'] == true),
+        for (final p in partidos) ...[
+          if (datos['puede_editar'] == true)
+            for (final origen in sancionesPara['${p['partido_id']}'] ?? <Map<String, dynamic>>[])
+              RevisionSancionesTesoreria(
+                key: ValueKey('penas-$_equipo-${origen['partido_id']}-${p['partido_id']}'),
+                partidoId: '${origen['partido_id']}', equipoId: '$_equipo',
+                partidoOrigen: 'Para cobrar en el siguiente partido: ${p['local']} vs ${p['visitante']} · ${fechaTesoreria(p['fecha'])}\n'
+                  'Origen: ${origen['local']} vs ${origen['visitante']} · ${fechaTesoreria(origen['fecha'])}',
+              ),
+          _partido(p, datos['puede_editar'] == true),
+        ],
+        if (datos['puede_editar'] == true && _desde == null && _hasta == null)
+          for (final origen in sinSiguiente)
+            RevisionSancionesTesoreria(
+              key: ValueKey('penas-pendiente-$_equipo-${origen['partido_id']}'),
+              partidoId: '${origen['partido_id']}', equipoId: '$_equipo',
+              partidoOrigen: 'Pendiente para el siguiente partido · Falta definir su programación.\n'
+                'Origen: ${origen['local']} vs ${origen['visitante']} · ${fechaTesoreria(origen['fecha'])}',
+            ),
       ],
     );
   }
