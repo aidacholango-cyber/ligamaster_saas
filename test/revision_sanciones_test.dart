@@ -41,7 +41,8 @@ void main() {
           manual = true; guardados++; datos = ++revision;
         } else {
           expect(request.url.path, endsWith('lm_penas_revision_leer'));
-          datos = {'revision': revision, 'origen': 'origen-original', 'observaciones': '', 'jugadores': [
+          datos = {'revision': revision, 'origen': 'origen-original', 'observaciones': '',
+            'envio': {'revision': 2}, 'jugadores': [
             {'id': 'j1', 'equipo_id': 1, 'equipo': 'EQUIPO', 'nombre': 'JUGADOR', 'camiseta': 7,
               'participo': true, 'ta_original': 1, 'tr_original': false, 'ta': manual ? 2 : 1, 'tr': false, 'manual': manual, 'suspension_manual': null},
             {'id': 'j2', 'equipo_id': 2, 'equipo': 'VISITANTE', 'nombre': 'OTRO JUGADOR', 'camiseta': 8,
@@ -57,6 +58,13 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: PantallaRevisionSanciones(partidoId: 'p1')));
     await cargar();
     expect(find.text('Partidos jugados: 3'), findsOneWidget);
+    expect(find.textContaining('Último envío a Tesorería'), findsNothing);
+    final hojaOriginal = find.text('EQUIPO · Hoja original: T.A. 1 · T.R. No');
+    expect(hojaOriginal, findsOneWidget);
+    expect(tester.widget<Text>(hojaOriginal).style?.color, Colors.white);
+    final cuadroOriginal = tester.widget<Container>(
+      find.ancestor(of: hojaOriginal, matching: find.byType(Container)).first);
+    expect((cuadroOriginal.decoration as BoxDecoration).color, const Color(0xFF166534));
     await tester.tap(find.text('Partidos jugados: 3')); await tester.pumpAndSettle();
     expect(find.text('Total en este campeonato: 3'), findsOneWidget);
     expect(find.text('Editar conteo'), findsNothing);

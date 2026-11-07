@@ -457,10 +457,6 @@ class _PantallaRevisionSancionesState extends State<PantallaRevisionSanciones> {
                           'La hoja cambió después de la revisión anterior. Revisa nuevamente todos los datos.',
                           style: TextStyle(color: Color(0xFFB42318)),
                         ),
-                      if (_datos?['envio'] != null)
-                        Text(
-                          'Último envío a Tesorería: revisión ${_datos!['envio']['revision']}',
-                        ),
                       if (_error != null)
                         Text(
                           _error!,
